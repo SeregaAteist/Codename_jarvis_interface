@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""tg-media-analyzer — Telegram bot for media analysis with JARVIS integration."""
 import logging
 import sys
 from pathlib import Path
 
-# Ensure module root is in path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from telegram.ext import Application, CallbackQueryHandler, MessageHandler, filters
 
 import config
-from bot.handlers import handle_media, handle_callback
+from bot.handlers import handle_media, handle_callback, handle_url
+from bot.task_handler import handle_task_callback, handle_manual_task
 from db.storage import init_db
 
 logging.basicConfig(
@@ -23,22 +22,34 @@ logger = logging.getLogger(__name__)
 def build_app() -> Application:
     if not config.TELEGRAM_TOKEN:
         raise ValueError("TELEGRAM_BOT_TOKEN не задан в .env")
-    if not config.GEMINI_KEYS and not config.CLAUDE_KEYS:
-        raise ValueError("Нет API ключей — добавьте GEMINI_API_KEY или ANTHROPIC_API_KEY в .env")
+    config.require_security_ids()   # fail fast: TELEGRAM_CHAT_ID + OWNER_USER_ID обязательны
 
     init_db()
     app = Application.builder().token(config.TELEGRAM_TOKEN).build()
+
+    # Media files
     media_filter = filters.VIDEO | filters.PHOTO | filters.VOICE | filters.VIDEO_NOTE
     app.add_handler(MessageHandler(media_filter, handle_media))
-    app.add_handler(CallbackQueryHandler(handle_callback, pattern=r"^[sdx]:"))
+
+    # URLs
+    app.add_handler(MessageHandler(filters.TEXT & filters.Entity("url"), handle_url))
+
+    # Manual tasks in tasks topic
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_manual_task))
+
+    # Callbacks
+    app.add_handler(CallbackQueryHandler(handle_callback,      pattern=r"^[sdx]:"))
+    app.add_handler(CallbackQueryHandler(handle_task_callback, pattern=r"^(approve|cancel):"))
+
     return app
 
 
 def main():
     logger.info("=== tg-media-analyzer starting ===")
-    logger.info("Gemini keys: %d | Claude keys: %d",
-                len(config.GEMINI_KEYS), len(config.CLAUDE_KEYS))
-    app = build_app()
+    logger.info("Gemini keys: %d | Claude keys: %d | Tasks topic: %d | Owner: %d",
+                len(config.GEMINI_KEYS), len(config.CLAUDE_KEYS),
+                config.TASKS_TOPIC_ID, config.OWNER_USER_ID)
+    app = build_app()   # бросит RuntimeError, если не заданы обязательные ID безопасности
     app.run_polling(drop_pending_updates=True)
 
 
