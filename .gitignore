@@ -13,3 +13,11 @@ data/cache/
 dist/
 build/
 .DS_Store
+
+# Personal / generated data — never commit
+hud/data/
+**/data/
+*.db
+**/data/*.json
+tmp/
+**/tmp/
