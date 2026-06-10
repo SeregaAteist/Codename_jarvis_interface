@@ -309,12 +309,19 @@ class JarvisHandler(BaseHTTPRequestHandler):
 
     # ── Response helpers ──────────────────────────────────────────────────────
 
+    def _security_headers(self) -> None:
+        self.send_header("X-Content-Type-Options",  "nosniff")
+        self.send_header("X-Frame-Options",          "DENY")
+        self.send_header("Referrer-Policy",          "no-referrer")
+        self.send_header("Cache-Control",            "no-store")
+
     def _json(self, data: dict, status: int = 200):
         body = json.dumps(data, ensure_ascii=False).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", len(body))
         self.send_header("Access-Control-Allow-Origin", self._cors_origin())
+        self._security_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -323,6 +330,7 @@ class JarvisHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", len(body))
+        self._security_headers()
         self.end_headers()
         self.wfile.write(body)
 

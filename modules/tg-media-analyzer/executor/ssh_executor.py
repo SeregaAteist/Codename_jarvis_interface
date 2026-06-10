@@ -2,15 +2,16 @@
 from __future__ import annotations
 import asyncio
 import logging
+import os
 import uuid
 
 logger = logging.getLogger(__name__)
 
-SSH_HOST  = "100.84.234.120"
-SSH_USER  = "seregaateist"
-SSH_KEY   = "/Users/seregaateist/.ssh/jarvis_bot"
-HOME      = "/Users/seregaateist"
-TASKS_DIR = "/Users/seregaateist/Projects/jarvis/tasks"
+SSH_HOST  = os.environ.get("SSH_HOST",  "100.84.234.120")
+SSH_USER  = os.environ.get("SSH_USER",  "seregaateist")
+SSH_KEY   = os.environ.get("SSH_KEY",   os.path.expanduser("~/.ssh/jarvis_bot"))
+HOME      = os.environ.get("SSH_HOME",  os.path.expanduser("~"))
+TASKS_DIR = os.environ.get("TASKS_DIR", os.path.join(os.path.expanduser("~"), "Projects/jarvis/tasks"))
 
 PLAN_PROMPT = """Ты получил задачу. НЕ выполняй её — только составь план.
 
@@ -68,7 +69,7 @@ async def _write_file(remote_path: str, content: str) -> None:
     proc = await asyncio.create_subprocess_exec(
         "ssh",
         "-i", SSH_KEY,
-        "-o", "StrictHostKeyChecking=no",
+        "-o", "StrictHostKeyChecking=accept-new",
         "-o", "ConnectTimeout=10",
         "-l", SSH_USER,
         SSH_HOST,
@@ -87,7 +88,7 @@ async def _ssh(cmd: str, timeout: int = 30) -> str:
     proc = await asyncio.create_subprocess_exec(
         "ssh",
         "-i", SSH_KEY,
-        "-o", "StrictHostKeyChecking=no",
+        "-o", "StrictHostKeyChecking=accept-new",
         "-o", "ConnectTimeout=10",
         "-l", SSH_USER,
         SSH_HOST,

@@ -102,10 +102,12 @@ class PluginManager:
     def load_from_file(self, path: str) -> Plugin | None:
         """Dynamically load a plugin from a .py file in the plugins dir (see config_paths.PLUGINS_DIR)."""
         try:
-            # Security: only allow files inside the plugins directory
+            # Security: only allow files inside the plugins directory.
+            # Use os.sep suffix to prevent prefix-collision attacks
+            # (e.g. /plugins2/evil.py matching /plugins prefix).
             real_path = os.path.realpath(path)
             real_dir  = os.path.realpath(_PLUGINS_DIR)
-            if not real_path.startswith(real_dir):
+            if not real_path.startswith(real_dir + os.sep):
                 raise ValueError("Path traversal attempt blocked.")
             if not real_path.endswith(".py"):
                 raise ValueError("Only .py files allowed.")

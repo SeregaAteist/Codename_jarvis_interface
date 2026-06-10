@@ -26,7 +26,7 @@ class Config:
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
     GROUP_CHAT_ID: str = os.getenv("GROUP_CHAT_ID", "")
     THREAD_ID: int = int(os.getenv("THREAD_ID", "0"))
-    API_HOST: str = "0.0.0.0"
+    API_HOST: str = "127.0.0.1"
     API_PORT: int = 8000
     JIKAN_URL: str = "https://api.jikan.moe/v4"
 

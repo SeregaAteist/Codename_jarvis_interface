@@ -1,6 +1,16 @@
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
+from __future__ import annotations
+
+import os
+import secrets
+import time
+import threading
+from collections import defaultdict
+from typing import Annotated
+
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
 from agents.db_agent import (
     get_watchlist, get_all_snapshot,
     get_recent_episodes, add_to_watchlist, update_watchlist_status
@@ -9,50 +19,109 @@ from agents.recommend_agent import get_recommendations
 
 app = FastAPI(title="J.A.R.V.I.S. Anime API")
 
+# CORS: localhost only — no wildcard
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "null",   # Electron / local file://
+    ],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-Anime-Token"],
 )
+
+# ── Auth token ────────────────────────────────────────────────────────────────
+
+_API_TOKEN: str = os.environ.get("ANIME_API_TOKEN", "")
+if not _API_TOKEN:
+    _API_TOKEN = secrets.token_urlsafe(32)
+
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+
+_rl_lock    = threading.Lock()
+_rl_windows: dict[str, list[float]] = defaultdict(list)
+_RL_WINDOW  = 60.0
+_RL_LIMITS: dict[str, int] = {
+    "/api/recommend": 5,
+    "default": 60,
+}
+
+
+def _rate_ok(ip: str, path: str) -> bool:
+    key   = f"{ip}:{path}"
+    limit = _RL_LIMITS.get(path, _RL_LIMITS["default"])
+    now   = time.monotonic()
+    with _rl_lock:
+        wins = _rl_windows[key]
+        wins[:] = [t for t in wins if now - t < _RL_WINDOW]
+        if len(wins) >= limit:
+            return False
+        wins.append(now)
+        return True
+
+
+def _check_request(request: Request) -> None:
+    """Validate token + rate limit. Raises HTTPException on failure."""
+    # Auth
+    token = request.headers.get("X-Anime-Token", "")
+    if not token or not secrets.compare_digest(token, _API_TOKEN):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    # Rate limit
+    client_ip = request.client.host if request.client else "unknown"
+    if not _rate_ok(client_ip, request.url.path):
+        raise HTTPException(status_code=429, detail="rate limit exceeded")
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/health")
+async def health():
+    return {"status": "online", "agent": "J.A.R.V.I.S."}
 
 
 @app.get("/api/watchlist")
-async def api_watchlist():
+async def api_watchlist(request: Request):
+    _check_request(request)
     return {"data": get_watchlist()}
 
 
 @app.get("/api/catalog")
-async def api_catalog():
+async def api_catalog(request: Request):
+    _check_request(request)
     return {"data": get_all_snapshot()}
 
 
 @app.get("/api/episodes")
-async def api_episodes(limit: int = 30):
+async def api_episodes(
+    request: Request,
+    limit: Annotated[int, Query(ge=1, le=500)] = 30,
+):
+    _check_request(request)
     return {"data": get_recent_episodes(limit)}
 
 
 @app.post("/api/watchlist/add")
-async def api_add(title: str, url: str = ""):
+async def api_add(request: Request, title: str, url: str = ""):
+    _check_request(request)
     added = add_to_watchlist(title, url)
     return {"success": added}
 
 
 @app.post("/api/watchlist/update")
-async def api_update(title: str, status: str):
+async def api_update(request: Request, title: str, status: str):
+    _check_request(request)
     ok = update_watchlist_status(title, status)
     return {"success": ok}
 
 
 @app.get("/api/recommend")
-async def api_recommend():
+async def api_recommend(request: Request):
+    _check_request(request)
     result = await get_recommendations()
     return {"text": result}
-
-
-@app.get("/api/health")
-async def health():
-    return {"status": "online", "agent": "J.A.R.V.I.S."}
 
 
 app.mount(
