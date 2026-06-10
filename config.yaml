@@ -1,0 +1,49 @@
+user:
+  name: Сергей
+  city: Одесса
+  language: ru
+
+voice:
+  enabled: false
+  engine: macos_say
+  voice: Milena
+  rate: 180
+
+server:
+  host: 127.0.0.1
+  port: 7734
+
+weather:
+  lat: 46.4825
+  lon: 30.7233
+
+news:
+  feeds:
+    - https://feeds.bbcrussian.com/news
+    - https://rss.unian.net/site/news_rus.rss
+
+ollama:
+  model: mistral
+
+claude:
+  enabled: false        # включить когда будут кредиты на console.anthropic.com
+  model: claude-haiku-4-5-20251001
+  max_tokens: 512
+
+gemini:
+  model: gemini-2.5-flash
+  max_tokens: 512
+
+groq:
+  model: llama-3.1-8b-instant   # быстрый; или llama-3.3-70b-versatile для сложных запросов
+  max_tokens: 512
+
+xai:
+  model: grok-3-mini   # быстрый; или grok-3 для сложных запросов
+  max_tokens: 512
+
+objective:
+  label: "BUILD $10K BUSINESS"
+  target: 10000
+  current: 9068
+  currency: "$"
