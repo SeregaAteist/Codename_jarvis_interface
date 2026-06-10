@@ -5,7 +5,8 @@ import time
 import threading
 from datetime import datetime
 
-MEMORY_FILE = os.path.expanduser("~/jarvis/data/memory.json")
+from core.config_paths import MEMORY_FILE as _MEMORY_FILE
+MEMORY_FILE = str(_MEMORY_FILE)
 
 # ── In-memory TTL cache (avoids disk read on every request) ──────────────────
 _mem_cache: dict | None = None

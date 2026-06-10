@@ -36,6 +36,7 @@ from agents import (
 )
 from agents.browser import BrowserAgent
 from core.cache import metrics_cache
+from core.models import CLAUDE_MODEL, GEMINI_MODEL
 from core.security import log_auth, log_rate_limit, log_threat, log_input_violation
 from core.plugin_registry import plugin_manager
 from core.monitor import monitor as _monitor
@@ -183,11 +184,11 @@ def _build_core() -> ReasoningCore:
         weather  = WeatherAgent(lat, lon, city),
         rss      = RSSAgent(feeds=CONFIG.get("news", {}).get("feeds", [])),
         claude   = ClaudeAgent(
-            model      = CONFIG.get("claude",  {}).get("model",      "claude-haiku-4-5-20251001"),
+            model      = CONFIG.get("claude",  {}).get("model",      CLAUDE_MODEL),
             max_tokens = CONFIG.get("claude",  {}).get("max_tokens", 512),
         ),
         gemini   = GeminiAgent(
-            model      = CONFIG.get("gemini",  {}).get("model",      "gemini-2.0-flash"),
+            model      = CONFIG.get("gemini",  {}).get("model",      GEMINI_MODEL),
             max_tokens = CONFIG.get("gemini",  {}).get("max_tokens", 512),
         ),
         groq     = GroqAgent(
@@ -514,7 +515,8 @@ class JarvisHandler(BaseHTTPRequestHandler):
             if not filename:
                 self._json({"error": "file required"}, 400); return
             import os as _os
-            full_path = _os.path.join(_os.path.expanduser("~/jarvis/plugins"), filename)
+            from core.config_paths import PLUGINS_DIR
+            full_path = _os.path.join(str(PLUGINS_DIR), filename)
             plugin = plugin_manager.load_from_file(full_path)
             if plugin:
                 self._json({"ok": True, "name": plugin.name})

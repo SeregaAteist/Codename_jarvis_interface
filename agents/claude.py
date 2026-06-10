@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import subprocess
 
+from core.models import CLAUDE_MODEL
+
 
 _SYSTEM_PROMPT = (
     "Ты — JARVIS, персональный ИИ-ассистент Сергея. "
@@ -16,7 +18,7 @@ class ClaudeAgent:
     name = "claude"
     icon = "◆"
 
-    def __init__(self, model: str = "claude-haiku-4-5-20251001", max_tokens: int = 512):
+    def __init__(self, model: str = CLAUDE_MODEL, max_tokens: int = 512):
         self.model      = model
         self.max_tokens = max_tokens
         self._client    = None  # lazy init

@@ -4,7 +4,8 @@ import logging
 import os
 import threading
 
-_LOG_FILE = os.path.expanduser("~/jarvis/logs/security.log")
+from core.config_paths import SECURITY_LOG as _SECURITY_LOG
+_LOG_FILE = str(_SECURITY_LOG)
 os.makedirs(os.path.dirname(_LOG_FILE), exist_ok=True)
 
 _logger = logging.getLogger("jarvis.security")

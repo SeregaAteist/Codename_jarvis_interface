@@ -5,7 +5,8 @@ import os
 import threading
 import time
 
-_CACHE_DIR = os.path.expanduser("~/jarvis/data/cache")
+from core.config_paths import CACHE_DIR as _CACHE_DIR_PATH
+_CACHE_DIR = str(_CACHE_DIR_PATH)
 os.makedirs(_CACHE_DIR, exist_ok=True)
 
 

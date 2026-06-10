@@ -3,7 +3,8 @@ import json
 import os
 from datetime import datetime
 
-PREFS_FILE = os.path.expanduser("~/jarvis/data/preferences.json")
+from core.config_paths import PREFS_FILE as _PREFS_FILE
+PREFS_FILE = str(_PREFS_FILE)
 
 _DEFAULTS = {
     "voice_speed": 175,

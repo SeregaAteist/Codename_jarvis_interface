@@ -5,7 +5,8 @@ import os
 import threading
 from typing import Callable
 
-_PLUGINS_DIR = os.path.expanduser("~/jarvis/plugins")
+from core.config_paths import PLUGINS_DIR as _PLUGINS_DIR_PATH
+_PLUGINS_DIR = str(_PLUGINS_DIR_PATH)
 os.makedirs(_PLUGINS_DIR, exist_ok=True)
 
 
@@ -99,7 +100,7 @@ class PluginManager:
             return [p.to_dict() for p in self._plugins.values()]
 
     def load_from_file(self, path: str) -> Plugin | None:
-        """Dynamically load a plugin from a .py file in ~/jarvis/plugins/."""
+        """Dynamically load a plugin from a .py file in the plugins dir (see config_paths.PLUGINS_DIR)."""
         try:
             # Security: only allow files inside the plugins directory
             real_path = os.path.realpath(path)
@@ -138,7 +139,7 @@ class PluginManager:
             return None
 
     def load_directory(self) -> int:
-        """Scan ~/jarvis/plugins/ and load all .py files (except template.py)."""
+        """Scan the plugins dir and load all .py files (except template.py)."""
         count = 0
         for fname in os.listdir(_PLUGINS_DIR):
             if fname.endswith(".py") and fname != "template.py" and not fname.startswith("_"):

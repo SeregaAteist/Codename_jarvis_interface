@@ -2,6 +2,8 @@
 from __future__ import annotations
 import os
 
+from core.models import GEMINI_MODEL
+
 _SYSTEM_PROMPT = (
     "Ты — JARVIS, персональный ИИ-ассистент Сергея. "
     "Отвечай кратко, по делу, на русском языке. "
@@ -11,13 +13,13 @@ _SYSTEM_PROMPT = (
 
 # Tried in order; first to succeed wins
 _FALLBACK_MODELS = [
-    "gemini-2.5-flash",
+    GEMINI_MODEL,
     "gemini-2.5-flash-lite",
     "gemini-flash-latest",
     "gemini-flash-lite-latest",
 ]
 
-_DEFAULT_MODEL = "gemini-2.5-flash"
+_DEFAULT_MODEL = GEMINI_MODEL
 
 
 class GeminiAgent:

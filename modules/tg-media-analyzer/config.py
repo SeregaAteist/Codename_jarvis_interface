@@ -56,7 +56,7 @@ GEMINI_KEYS: list[str] = _load_keys("GEMINI")
 CLAUDE_KEYS: list[str] = _load_keys("ANTHROPIC") or _load_keys("CLAUDE")
 
 GEMINI_MODEL = "gemini-2.5-flash"
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+CLAUDE_MODEL = "claude-fable-5"
 BATCH_TIMEOUT = 3
 MAX_IMAGE_SIZE = 4 * 1024 * 1024
 
