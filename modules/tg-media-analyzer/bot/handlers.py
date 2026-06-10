@@ -147,6 +147,10 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         _batches[key] = []
         _batch_tasks[key] = asyncio.create_task(_batch_timer(key, context.application))
     _batches[key].append(item)
+    try:
+        await context.bot.set_message_reaction(chat_id=msg.chat_id, message_id=msg.message_id, reaction="👀")
+    except Exception:
+        pass
 
 
 async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

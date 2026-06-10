@@ -12,6 +12,12 @@ TASKS_DIR="$HOME/Projects/jarvis/tasks"
 CLAUDE="$HOME/.local/bin/claude"
 LOG="$TASKS_DIR/watcher.log"
 
+# macOS не имеет timeout по умолчанию. Используем timeout/gtimeout (coreutils) если есть,
+# иначе работаем без таймаута — не ломая пайплайн (brew install coreutils даёт gtimeout).
+TIMEOUT_BIN="$(command -v timeout || command -v gtimeout || true)"
+TIMEOUT_PREFIX=""
+[ -n "$TIMEOUT_BIN" ] && TIMEOUT_PREFIX="$TIMEOUT_BIN 600"
+
 mkdir -p "$TASKS_DIR/pending" "$TASKS_DIR/done"
 echo "[$(date)] Watcher started" >> "$LOG"
 
@@ -24,7 +30,7 @@ while true; do
         # Запустить Claude Code
         result_file="$TASKS_DIR/done/${task_id}.result"
         cd "$HOME/Projects/jarvis" && \
-        "$CLAUDE" --model claude-fable-5 --dangerously-skip-permissions --print \
+        $TIMEOUT_PREFIX "$CLAUDE" --model claude-fable-5 --dangerously-skip-permissions --print \
             "$(cat "$task_file")" > "$result_file" 2>&1
 
         # Переместить задачу

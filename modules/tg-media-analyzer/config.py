@@ -57,7 +57,7 @@ CLAUDE_KEYS: list[str] = _load_keys("ANTHROPIC") or _load_keys("CLAUDE")
 
 GEMINI_MODEL = "gemini-2.5-flash"
 CLAUDE_MODEL = "claude-fable-5"
-BATCH_TIMEOUT = 3
+BATCH_TIMEOUT = 8
 MAX_IMAGE_SIZE = 4 * 1024 * 1024
 
 # Топик для задач Claude Code

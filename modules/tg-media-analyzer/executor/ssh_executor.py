@@ -44,7 +44,7 @@ async def execute_task(task_content: str) -> str:
     return await _run_via_watcher(prompt, timeout=600)
 
 
-async def _run_via_watcher(prompt: str, timeout: int = 120) -> str:
+async def _run_via_watcher(prompt: str, timeout: int = 300) -> str:
     """Write task for watcher, poll for result."""
     task_id = uuid.uuid4().hex[:8]
     task_file = f"{TASKS_DIR}/pending/TASK_{task_id}.md"
