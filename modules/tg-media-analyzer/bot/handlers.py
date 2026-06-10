@@ -20,6 +20,20 @@ logger = logging.getLogger(__name__)
 _batches: dict[tuple, list[dict]] = {}
 _batch_tasks: dict[tuple, asyncio.Task] = {}
 
+# General-топик форума: Bot API не присылает message_thread_id для него,
+# а при отправке туда параметр message_thread_id нужно опускать.
+GENERAL_TOPIC_ID = 1
+
+
+def _thread_of(msg) -> int:
+    if msg.is_topic_message and msg.message_thread_id:
+        return msg.message_thread_id
+    return GENERAL_TOPIC_ID
+
+
+def _send_thread(thread_id: int | None) -> int | None:
+    return None if thread_id in (None, GENERAL_TOPIC_ID) else thread_id
+
 
 def _owner_ok(msg) -> bool:
     if not msg.from_user or msg.from_user.id != config.OWNER_USER_ID:
@@ -37,7 +51,7 @@ async def _process_batch(key: tuple, items: list[dict], app) -> None:
         status_msg = None
         try:
             status_msg = await app.bot.send_message(
-                chat_id=chat_id, message_thread_id=thread_id,
+                chat_id=chat_id, message_thread_id=_send_thread(thread_id),
                 text=f"⏳ Анализирую {len(batch.items)} файл(ов)...",
             )
         except Exception:
@@ -97,7 +111,7 @@ async def _process_batch(key: tuple, items: list[dict], app) -> None:
                 pass
 
         await app.bot.send_message(
-            chat_id=chat_id, message_thread_id=thread_id,
+            chat_id=chat_id, message_thread_id=_send_thread(thread_id),
             text=reply, parse_mode="Markdown",
             reply_markup=action_keyboard(store_key),
             reply_to_message_id=reply_to,
@@ -128,7 +142,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     msg = update.effective_message
     if not msg or not _owner_ok(msg):
         return
-    if config.TOPIC_ID and msg.message_thread_id != config.TOPIC_ID:
+    if config.TOPIC_ID and _thread_of(msg) != config.TOPIC_ID:
         return
 
     if msg.video:
@@ -142,7 +156,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     else:
         return
 
-    key = (msg.chat_id, msg.message_thread_id)
+    key = (msg.chat_id, _thread_of(msg))
     if key not in _batches:
         _batches[key] = []
         _batch_tasks[key] = asyncio.create_task(_batch_timer(key, context.application))
@@ -157,7 +171,7 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     msg = update.effective_message
     if not msg or not msg.text or not _owner_ok(msg):
         return
-    if config.TOPIC_ID and msg.message_thread_id != config.TOPIC_ID:
+    if config.TOPIC_ID and _thread_of(msg) != config.TOPIC_ID:
         return
 
     from analyzers.url_downloader import is_supported_url, download_url
@@ -192,7 +206,7 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         if status:
             await status.delete()
         await context.bot.send_message(
-            chat_id=msg.chat_id, message_thread_id=msg.message_thread_id,
+            chat_id=msg.chat_id, message_thread_id=_send_thread(_thread_of(msg)),
             text=reply, parse_mode="Markdown",
             reply_markup=action_keyboard(store_key),
             reply_to_message_id=msg.message_id,

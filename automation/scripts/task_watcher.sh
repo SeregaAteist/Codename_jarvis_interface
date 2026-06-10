@@ -27,11 +27,15 @@ while true; do
         task_id=$(basename "$task_file" .md)
         echo "[$(date)] Processing: $task_id" >> "$LOG"
 
-        # Запустить Claude Code
+        # Запустить Claude Code.
+        # Пишем во временный файл и атомарно переименовываем по завершении:
+        # бот поллит `test -f result_file`, и редирект сразу в result_file
+        # заставлял его читать пустой/частичный результат (гонка).
         result_file="$TASKS_DIR/done/${task_id}.result"
         cd "$HOME/Projects/jarvis" && \
         $TIMEOUT_PREFIX "$CLAUDE" --model claude-fable-5 --dangerously-skip-permissions --print \
-            "$(cat "$task_file")" > "$result_file" 2>&1
+            "$(cat "$task_file")" > "$result_file.tmp" 2>&1
+        mv "$result_file.tmp" "$result_file"
 
         # Переместить задачу
         mv "$task_file" "$TASKS_DIR/done/${task_id}.md"
