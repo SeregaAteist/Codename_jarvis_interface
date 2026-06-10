@@ -27,18 +27,15 @@ async def quick_analyze(image_paths: list[Path], transcripts: list[str]) -> str:
     if not key:
         return "⚠️ Gemini недоступен — добавьте GEMINI_API_KEY в .env"
     try:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
         import PIL.Image
-        genai.configure(api_key=key)
-        model = genai.GenerativeModel(
-            config.GEMINI_MODEL,
-            safety_settings=[
-                {"category": "HARM_CATEGORY_HARASSMENT",        "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH",       "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-            ],
-        )
+        client = genai.Client(api_key=key)
+        safety = [
+            types.SafetySetting(category=c, threshold="BLOCK_NONE")
+            for c in ("HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH",
+                      "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT")
+        ]
         parts = []
         for img_path in image_paths[:8]:
             if img_path.exists():
@@ -49,7 +46,11 @@ async def quick_analyze(image_paths: list[Path], transcripts: list[str]) -> str:
         if transcripts:
             parts.append("Транскрипция/текст из видео:\n" + "\n---\n".join(transcripts))
         parts.append(QUICK_PROMPT)
-        response = await model.generate_content_async(parts)
+        response = await client.aio.models.generate_content(
+            model=config.GEMINI_MODEL,
+            contents=parts,
+            config=types.GenerateContentConfig(safety_settings=safety),
+        )
         try:
             return response.text
         except Exception:

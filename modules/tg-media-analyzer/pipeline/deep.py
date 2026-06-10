@@ -42,18 +42,15 @@ async def deep_analyze(quick_summary: str, image_paths: list[Path], transcripts:
     if not key:
         return "⚠️ Нет API ключей — добавьте GEMINI_API_KEY в .env"
     try:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
         import PIL.Image
-        genai.configure(api_key=key)
-        model = genai.GenerativeModel(
-            config.GEMINI_MODEL,
-            safety_settings=[
-                {"category": "HARM_CATEGORY_HARASSMENT",        "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH",       "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-            ],
-        )
+        client = genai.Client(api_key=key)
+        safety = [
+            types.SafetySetting(category=c, threshold="BLOCK_NONE")
+            for c in ("HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH",
+                      "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT")
+        ]
         parts = []
         valid = [p for p in image_paths[:16] if p.exists() and p.stat().st_size <= 4 * 1024 * 1024]
         for img_path in valid:
@@ -68,8 +65,10 @@ async def deep_analyze(quick_summary: str, image_paths: list[Path], transcripts:
         parts.append(DEEP_PROMPT)
         if len(parts) == 1:
             return "⚠️ Нет контента для анализа"
-        response = await model.generate_content_async(
-            parts, generation_config={"max_output_tokens": 8192}
+        response = await client.aio.models.generate_content(
+            model=config.GEMINI_MODEL,
+            contents=parts,
+            config=types.GenerateContentConfig(safety_settings=safety, max_output_tokens=8192),
         )
         try:
             return response.text

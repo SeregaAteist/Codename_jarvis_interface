@@ -16,15 +16,16 @@ async def analyze_video_native(video_path: Path, prompt: str, pool) -> str:
     if not key:
         return "⚠️ Gemini недоступен — нет ключей"
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=key)
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=key)
 
-        # Загрузка видео через File API (блокирующая — в отдельном потоке)
-        uploaded = await asyncio.to_thread(genai.upload_file, path=str(video_path))
+        # Загрузка видео через File API (нативный async в новом SDK)
+        uploaded = await client.aio.files.upload(file=str(video_path))
 
         # Ждём пока файл обработается (ACTIVE)
         for _ in range(60):
-            f = await asyncio.to_thread(genai.get_file, uploaded.name)
+            f = await client.aio.files.get(name=uploaded.name)
             if f.state.name == "ACTIVE":
                 break
             if f.state.name == "FAILED":
@@ -33,23 +34,20 @@ async def analyze_video_native(video_path: Path, prompt: str, pool) -> str:
         else:
             return "⚠️ Таймаут обработки видео Gemini"
 
-        model = genai.GenerativeModel(
-            config.GEMINI_MODEL,
-            safety_settings=[
-                {"category": "HARM_CATEGORY_HARASSMENT",        "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH",       "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-            ],
-        )
-        response = await model.generate_content_async(
-            [uploaded, prompt],
-            generation_config={"max_output_tokens": 8192},
+        safety = [
+            types.SafetySetting(category=c, threshold="BLOCK_NONE")
+            for c in ("HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH",
+                      "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT")
+        ]
+        response = await client.aio.models.generate_content(
+            model=config.GEMINI_MODEL,
+            contents=[uploaded, prompt],
+            config=types.GenerateContentConfig(safety_settings=safety, max_output_tokens=8192),
         )
 
         # Удалить файл с серверов Gemini
         try:
-            await asyncio.to_thread(genai.delete_file, uploaded.name)
+            await client.aio.files.delete(name=uploaded.name)
         except Exception:
             pass
 

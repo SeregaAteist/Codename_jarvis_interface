@@ -11,10 +11,9 @@ async def analyze_photos(image_paths: list[Path], pool) -> str:
     if not key:
         return "⚠️ Gemini недоступен"
     try:
-        import google.generativeai as genai
+        from google import genai
         import PIL.Image
-        genai.configure(api_key=key)
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        client = genai.Client(api_key=key)
         parts = []
         for img in image_paths[:8]:
             try:
@@ -25,7 +24,9 @@ async def analyze_photos(image_paths: list[Path], pool) -> str:
             "Проанализируй изображения. Что показано? Какие UI/UX паттерны, технологии, идеи? "
             "Как это можно применить в AI-ассистенте (JARVIS)? Отвечай на русском, кратко и конкретно."
         )
-        response = await model.generate_content_async(parts)
+        response = await client.aio.models.generate_content(
+            model="gemini-2.5-flash", contents=parts,
+        )
         pool._idx  # touch to register usage
         return response.text
     except Exception as e:
