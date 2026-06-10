@@ -135,13 +135,11 @@ async def handle_task_callback(update, context: ContextTypes.DEFAULT_TYPE) -> No
                 parse_mode="Markdown",
             )
 
-        # Git commit автоматически
+        # Git commit автоматически — сообщение через stdin (git commit -F -),
+        # без интерполяции в shell; путь репозитория из env (REPO_DIR ← TASKS_DIR).
         try:
-            from executor.ssh_executor import _ssh
-            commit_title = entry["title"][:50]
-            await _ssh(
-                f"cd /Users/seregaateist/Projects/jarvis && "
-                f"git add -A && git commit -m 'feat: {commit_title}' 2>&1 || true"
-            )
+            from executor.ssh_executor import autocommit
+            commit_title = entry["title"][:50].replace("\n", " ")
+            await autocommit(f"feat: {commit_title}")
         except Exception:
             pass

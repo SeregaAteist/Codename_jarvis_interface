@@ -16,6 +16,8 @@ SSH_USER  = os.environ.get("SSH_USER",  "")
 SSH_KEY   = os.environ.get("SSH_KEY",   os.path.expanduser("~/.ssh/jarvis_bot"))
 HOME      = os.environ.get("SSH_HOME",  os.path.expanduser("~"))
 TASKS_DIR = os.environ.get("TASKS_DIR", os.path.join(os.path.expanduser("~"), "Projects/jarvis/tasks"))
+# Корень git-репозитория = родитель TASKS_DIR (без хардкода пути).
+REPO_DIR  = os.environ.get("JARVIS_REPO", os.path.dirname(TASKS_DIR.rstrip("/")))
 
 PLAN_PROMPT = """Ты получил задачу. НЕ выполняй её — только составь план.
 
@@ -109,3 +111,32 @@ async def _ssh(cmd: str, timeout: int = 30) -> str:
     except asyncio.TimeoutError:
         proc.kill()
         return f"⚠️ Таймаут {timeout}с"
+
+
+async def autocommit(message: str) -> str:
+    """Stage + commit на SSH-хосте. Сообщение передаётся через stdin (git commit -F -),
+    поэтому НЕ интерполируется в shell — инъекция через текст задачи невозможна.
+    Путь репозитория берётся из REPO_DIR (env), без хардкода."""
+    if not SSH_HOST:
+        return ""
+    cmd = f"cd {REPO_DIR} && git add -A && git commit -F - 2>&1 || true"
+    proc = await asyncio.create_subprocess_exec(
+        "ssh",
+        "-i", SSH_KEY,
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "ConnectTimeout=10",
+        "-l", SSH_USER,
+        SSH_HOST,
+        cmd,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    try:
+        stdout, _ = await asyncio.wait_for(
+            proc.communicate(input=message.encode()), timeout=30
+        )
+        return stdout.decode().strip()
+    except asyncio.TimeoutError:
+        proc.kill()
+        return "⚠️ commit timeout"

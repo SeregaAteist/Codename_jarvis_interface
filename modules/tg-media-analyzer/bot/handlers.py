@@ -220,6 +220,7 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
+    thread = _send_thread(_thread_of(query.message))
     raw = query.data or ""
     if ":" not in raw:
         return
@@ -240,7 +241,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.edit_message_reply_markup(reply_markup=None)
         await context.bot.send_message(
             chat_id=query.message.chat_id,
-            message_thread_id=query.message.message_thread_id,
+            message_thread_id=thread,
             text="📌 Сохранено в отложенные.",
         )
     elif action == "s":
@@ -256,6 +257,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             text = f"🚀 *ИНСТРУКЦИИ:*\n\n{chunk}" if i == 0 else chunk
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                message_thread_id=query.message.message_thread_id,
+                message_thread_id=thread,
                 text=text, parse_mode="Markdown",
             )
