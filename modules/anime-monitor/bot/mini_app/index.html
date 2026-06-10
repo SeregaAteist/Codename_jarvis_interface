@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>J.A.R.V.I.S. Anime</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #16161f;
+    --accent: #4f8ef7;
+    --accent2: #7c5ce4;
+    --green: #00d084;
+    --amber: #f39c12;
+    --red: #e74c3c;
+    --text: #e8e8f0;
+    --muted: #6b6b85;
+    --border: #1e1e2e;
+    --card: #13131a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'SF Pro Display', sans-serif;
+    min-height: 100vh;
+    padding-bottom: 80px;
+  }
+  header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px 10px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .logo {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: .4; }
+  }
+  .tabs {
+    display: flex;
+    gap: 6px;
+  }
+  .tab {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    transition: all .2s;
+  }
+  .tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .section { display: none; padding: 12px 12px 0; }
+  .section.active { display: block; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    display: flex;
+    gap: 0;
+  }
+  .card-img {
+    width: 72px;
+    min-height: 100px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--bg3);
+  }
+  .card-img-placeholder {
+    width: 72px;
+    min-height: 100px;
+    background: var(--bg3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+  .card-body {
+    padding: 10px 12px;
+    flex: 1;
+    min-width: 0;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    line-height: 1.5;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-right: 4px;
+    margin-bottom: 4px;
+  }
+  .badge-new { background: #1a2a1a; color: var(--green); border: 1px solid #2a4a2a; }
+  .badge-ep  { background: #1a1a2e; color: var(--accent); border: 1px solid #2a2a4e; }
+  .badge-score { background: #2a1e0a; color: var(--amber); border: 1px solid #4a3a1a; }
+  .card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .btn-sm {
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .btn-sm:active { transform: scale(.95); }
+  .btn-sm.danger { border-color: #3a1a1a; color: var(--red); }
+  .btn-sm.success { border-color: #1a3a1a; color: var(--green); }
+  .btn-sm.primary { border-color: #1a2a4a; color: var(--accent); }
+
+  .rec-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+  .rec-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    margin-bottom: 12px;
+    transition: opacity .2s;
+  }
+  .rec-btn:active { opacity: .8; }
+
+  .ep-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  .ep-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .ep-meta { font-size: 11px; color: var(--muted); }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 40px 20px;
+  }
+  .spinner {
+    text-align: center;
+    padding: 30px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-top">
+    <span class="logo">J.A.R.V.I.S.</span>
+    <div class="status-dot"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('watchlist')">📋 Список</button>
+    <button class="tab" onclick="switchTab('new')">🆕 Новинки</button>
+    <button class="tab" onclick="switchTab('rec')">🤖 Рекомендации</button>
+  </div>
+</header>
+
+<div id="watchlist" class="section active">
+  <div id="wl-content"><div class="spinner">Загрузка...</div></div>
+</div>
+
+<div id="new" class="section">
+  <div id="ep-content"><div class="spinner">Загрузка...</div></div>
+</div>
+
+<div id="rec" class="section">
+  <button class="rec-btn" onclick="loadRec()">🤖 Получить рекомендации</button>
+  <div id="rec-content"></div>
+</div>
+
+<script>
+const API = '';
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const names = ['watchlist','new','rec'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.section').forEach(s => {
+    s.classList.toggle('active', s.id === name);
+  });
+  if (name === 'watchlist') loadWatchlist();
+  if (name === 'new') loadEpisodes();
+}
+
+async function loadWatchlist() {
+  const el = document.getElementById('wl-content');
+  try {
+    const r = await fetch(API + '/api/watchlist');
+    const { data } = await r.json();
+    if (!data.length) {
+      el.innerHTML = '<div class="empty">Вотчлист пуст.<br>Добавьте аниме через бот.</div>';
+      return;
+    }
+    el.innerHTML = data.map(item => cardHTML(item)).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Ошибка загрузки</div>';
+  }
+}
+
+async function loadEpisodes() {
+  const el = document.getElementById('ep-content');
+  try {
+    const r = await fetch(API + '/api/episodes?limit=30');
+    const { data } = await r.json();
+    if (!data.length) {
+      el.innerHTML = '<div class="empty">Новых серий нет.<br>Запустите скан через бот.</div>';
+      return;
+    }
+    el.innerHTML = data.map(ep => `
+      <div class="ep-item">
+        <div class="ep-title">${ep.anime_title}</div>
+        <div class="ep-meta">
+          ${ep.episode ? `<span class="badge badge-ep">${ep.episode}</span>` : ''}
+          ${ep.detected_at?.slice(0,16) || ''}
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Ошибка загрузки</div>';
+  }
+}
+
+async function loadRec() {
+  const el = document.getElementById('rec-content');
+  el.innerHTML = '<div class="spinner">🤖 Ollama думает... (10-30 сек)</div>';
+  try {
+    const r = await fetch(API + '/api/recommend');
+    const { text } = await r.json();
+    el.innerHTML = `<div class="rec-box">${text}</div>`;
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Ошибка — проверьте что Ollama запущена</div>';
+  }
+}
+
+function cardHTML(item) {
+  const img = item.img_url
+    ? `<img class="card-img" src="${item.img_url}" onerror="this.style.display='none'">`
+    : `<div class="card-img-placeholder">🎌</div>`;
+  const ep = item.episode
+    ? `<span class="badge badge-ep">${item.episode}</span>` : '';
+  const score = item.mal_score
+    ? `<span class="badge badge-score">MAL ${item.mal_score}</span>` : '';
+  return `
+    <div class="card">
+      ${img}
+      <div class="card-body">
+        <div class="card-title">${item.title}</div>
+        <div class="card-meta">${item.genres || ''}</div>
+        <div>${ep}${score}</div>
+        <div class="card-actions">
+          <button class="btn-sm success" onclick="markDone('${item.title}', this)">✅ Досмотрел</button>
+          <button class="btn-sm danger" onclick="dropAnime('${item.title}', this)">❌ Дроп</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function markDone(title, btn) {
+  btn.disabled = true;
+  await fetch(API + `/api/watchlist/update?title=${encodeURIComponent(title)}&status=completed`, {method:'POST'});
+  btn.closest('.card').remove();
+}
+
+async function dropAnime(title, btn) {
+  btn.disabled = true;
+  await fetch(API + `/api/watchlist/update?title=${encodeURIComponent(title)}&status=dropped`, {method:'POST'});
+  btn.closest('.card').remove();
+}
+
+loadWatchlist();
+</script>
+</body>
+</html>

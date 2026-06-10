@@ -1,0 +1,30 @@
+{
+  "name": "jarvis",
+  "version": "2.0.0",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac --dir"
+  },
+  "build": {
+    "appId": "com.jarvis.ai",
+    "productName": "JARVIS",
+    "files": [
+      "electron/**",
+      "ui/**",
+      "system/**",
+      "voice/**",
+      "scenarios/**",
+      "*.py",
+      "*.yaml"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dir"
+    }
+  },
+  "devDependencies": {
+    "electron": "^42.3.3",
+    "electron-builder": "^26.8.1"
+  }
+}

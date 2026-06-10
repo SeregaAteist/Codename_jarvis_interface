@@ -1,0 +1,22 @@
+{
+  "name": "jarvis-hud",
+  "version": "1.0.0",
+  "description": "J.A.R.V.I.S. HUD — Stark Industries",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.stark.jarvis",
+    "productName": "JARVIS HUD",
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "files": ["main.js"]
+  },
+  "devDependencies": {
+    "electron": "^42.3.3",
+    "electron-builder": "^26.8.1"
+  }
+}
