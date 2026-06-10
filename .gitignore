@@ -21,3 +21,4 @@ hud/data/
 **/data/*.json
 tmp/
 **/tmp/
+tasks/
