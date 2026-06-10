@@ -22,3 +22,28 @@ hud/data/
 tmp/
 **/tmp/
 tasks/
+
+# Secrets & credentials — NEVER commit (репо публичный)
+.env.*
+!.env.example
+*.pem
+*.key
+*_rsa
+*_ed25519
+id_*
+.ssh/
+credentials.json
+service-account*.json
+secrets.*
+*.secret
+
+# ML-модели и крупные бинарники (раздувают историю → используем локально/LFS)
+*.onnx
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+**/models/
+hud/voice/models/

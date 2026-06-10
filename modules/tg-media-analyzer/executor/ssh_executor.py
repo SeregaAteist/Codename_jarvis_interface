@@ -5,10 +5,14 @@ import logging
 import os
 import uuid
 
+import config  # noqa: F401 — импорт гарантирует, что .env уже загружен (load_dotenv)
+
 logger = logging.getLogger(__name__)
 
-SSH_HOST  = os.environ.get("SSH_HOST",  "100.84.234.120")
-SSH_USER  = os.environ.get("SSH_USER",  "seregaateist")
+# Инфраструктура читается ТОЛЬКО из окружения/.env — в исходниках публичного репо
+# никаких IP/имён/путей. Пустой SSH_HOST = исполнитель отключён (см. guard ниже).
+SSH_HOST  = os.environ.get("SSH_HOST",  "")
+SSH_USER  = os.environ.get("SSH_USER",  "")
 SSH_KEY   = os.environ.get("SSH_KEY",   os.path.expanduser("~/.ssh/jarvis_bot"))
 HOME      = os.environ.get("SSH_HOME",  os.path.expanduser("~"))
 TASKS_DIR = os.environ.get("TASKS_DIR", os.path.join(os.path.expanduser("~"), "Projects/jarvis/tasks"))
@@ -46,6 +50,9 @@ async def execute_task(task_content: str) -> str:
 
 async def _run_via_watcher(prompt: str, timeout: int = 300) -> str:
     """Write task for watcher, poll for result."""
+    if not SSH_HOST:
+        return ("⚠️ SSH-исполнитель не настроен: задайте SSH_HOST (и SSH_USER) в .env. "
+                "Инфраструктура намеренно не хранится в исходниках публичного репо.")
     task_id = uuid.uuid4().hex[:8]
     task_file = f"{TASKS_DIR}/pending/TASK_{task_id}.md"
     result_file = f"{TASKS_DIR}/done/TASK_{task_id}.result"

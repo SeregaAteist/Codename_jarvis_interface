@@ -1,0 +1,45 @@
+#!/bin/bash
+# Pre-commit secret scanner — блокирует коммит, если в staged-изменениях найдены секреты.
+# Репозиторий ПУБЛИЧНЫЙ, коммиты могут делаться автономно (SSH-watcher/Claude Code),
+# поэтому это последний рубеж против утечки ключей в открытую историю.
+# Обойти в крайнем случае: SKIP_SECRET_SCAN=1 git commit ...
+# Самодостаточный (bash+grep), без внешних зависимостей — не сломается в будущем.
+
+[ -n "$SKIP_SECRET_SCAN" ] && exit 0
+
+# Только добавленные строки в staged-диффе (без +++ заголовков)
+added="$(git diff --cached --unified=0 --no-color | grep '^+' | grep -vE '^\+\+\+')"
+[ -z "$added" ] && exit 0
+
+# Паттерны реальных секретов (precise — минимум ложных срабатываний)
+patterns=(
+  'sk-ant-[A-Za-z0-9_-]{20,}'                 # Anthropic API key
+  'github_pat_[A-Za-z0-9_]{20,}'              # GitHub fine-grained PAT
+  'gh[pousr]_[A-Za-z0-9]{30,}'                # GitHub classic tokens
+  'AIza[0-9A-Za-z_-]{35}'                     # Google API key
+  'gsk_[A-Za-z0-9]{40,}'                      # Groq API key
+  'xox[baprs]-[A-Za-z0-9-]{10,}'             # Slack token
+  'AKIA[0-9A-Z]{16}'                          # AWS access key id
+  'sk-[A-Za-z0-9]{32,}'                       # OpenAI-style key
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'        # private key block
+  'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'  # JWT
+)
+
+found=0
+for pat in "${patterns[@]}"; do
+  hit="$(printf '%s\n' "$added" | grep -nE -e "$pat")"
+  if [ -n "$hit" ]; then
+    echo "🚨 BLOCKED: обнаружен возможный секрет (паттерн: $pat)" >&2
+    printf '%s\n' "$hit" | sed 's/^/   /' >&2
+    found=1
+  fi
+done
+
+if [ "$found" = 1 ]; then
+  echo "" >&2
+  echo "Коммит отклонён, чтобы не утёк секрет в ПУБЛИЧНЫЙ репозиторий." >&2
+  echo "Перенесите значение в .env (gitignored). Если это ложное срабатывание:" >&2
+  echo "  SKIP_SECRET_SCAN=1 git commit ..." >&2
+  exit 1
+fi
+exit 0

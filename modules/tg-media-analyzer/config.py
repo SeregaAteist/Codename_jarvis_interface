@@ -63,6 +63,6 @@ MAX_IMAGE_SIZE = 4 * 1024 * 1024
 # Топик для задач Claude Code
 TASKS_TOPIC_ID: int = int(os.getenv("TASKS_TOPIC_ID", "0"))
 
-# SSH настройки
-SSH_HOST = "100.84.234.120"
-SSH_KEY  = "/Users/seregaateist/.ssh/jarvis_bot"
+# SSH-настройки исполнителя живут в .env и читаются в executor/ssh_executor.py
+# (SSH_HOST / SSH_USER / SSH_KEY / SSH_HOME). Здесь намеренно НЕ хардкодим инфру —
+# репозиторий публичный.

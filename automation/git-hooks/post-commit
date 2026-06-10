@@ -1,0 +1,9 @@
+#!/bin/bash
+# Автопуш после каждого коммита (включая автономные коммиты watcher/Claude Code).
+# Локальный хук — в репозиторий не коммитится. Токен берётся из macOS Keychain.
+# Пуш в фоне, чтобы не блокировать коммит; лог в .git/post-commit-push.log
+branch="$(git rev-parse --abbrev-ref HEAD)"
+{
+  echo "[$(date)] push $branch -> origin"
+  git push origin "$branch" 2>&1
+} >> "$(git rev-parse --git-dir)/post-commit-push.log" 2>&1 &
