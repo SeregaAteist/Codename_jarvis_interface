@@ -8,10 +8,9 @@ from agents.morning import MorningAgent
 from agents.weather import WeatherAgent
 from agents.rss import RSSAgent
 from agents.terminal import TerminalAgent
-from agents.wot import WotAgent
 
 __all__ = [
     "OllamaAgent", "GroqAgent", "GeminiAgent", "XAIAgent", "ClaudeAgent",
     "BrowserAgent", "MorningAgent", "WeatherAgent", "RSSAgent",
-    "TerminalAgent", "WotAgent",
+    "TerminalAgent",
 ]

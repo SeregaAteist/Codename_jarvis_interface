@@ -83,20 +83,6 @@ class Router:
             self._claude_ok = _claude_available()
         return self._claude_ok
 
-    def get_best_agent(self) -> str:
-        """Return name of the best available general-purpose agent."""
-        if self.ollama.is_available():
-            return "ollama"
-        if self.groq and self.groq.is_available():
-            return "groq"
-        if self.xai and self.xai.is_available():
-            return "xai"
-        if self.gemini and self.gemini.is_available():
-            return "gemini"
-        if self._check_claude():
-            return "claude"
-        return "none"
-
     # ── Routing ───────────────────────────────────────────────────────────────
 
     def route_intent(
@@ -158,10 +144,6 @@ class Router:
             "Нет доступного агента. Запустите Ollama или добавьте XAI_API_KEY / GROQ_API_KEY в .env.",
             "system",
         )
-
-    # ── Legacy shim ───────────────────────────────────────────────────────────
-    def route(self, text: str) -> tuple[str, str]:
-        return self.route_intent(text, "general")
 
 
 _LEARN_PAT = re.compile(r"запомни(?:\s+что)?\s+(.+)", re.I)
