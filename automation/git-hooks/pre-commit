@@ -42,4 +42,18 @@ if [ "$found" = 1 ]; then
   echo "  SKIP_SECRET_SCAN=1 git commit ..." >&2
   exit 1
 fi
+
+# S-7: smoke-тесты — ловим регрессии перед коммитом. Обход: SKIP_TESTS=1
+if [ -z "$SKIP_TESTS" ]; then
+  ROOT="$(git rev-parse --show-toplevel)"
+  PYTEST_PY="$ROOT/modules/tg-media-analyzer/venv/bin/python"
+  if [ -x "$PYTEST_PY" ] && [ -d "$ROOT/tests" ]; then
+    if ! "$PYTEST_PY" -m pytest "$ROOT/tests" -q >/tmp/jarvis_pytest.log 2>&1; then
+      echo "🚫 BLOCKED: smoke-тесты упали — регрессия:" >&2
+      tail -20 /tmp/jarvis_pytest.log >&2
+      echo "Обход (если намеренно): SKIP_TESTS=1 git commit ..." >&2
+      exit 1
+    fi
+  fi
+fi
 exit 0
