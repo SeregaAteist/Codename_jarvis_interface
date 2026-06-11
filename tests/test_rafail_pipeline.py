@@ -147,7 +147,7 @@ def test_approver_approve_flow(tmp_path, monkeypatch):
 
     async def send(msg, key, processed_id):
         sent["key"] = key
-        assert "Рафаїл підготував матеріал" in msg
+        assert "Рафаил подготовил материал" in msg
         assert "ses" in msg
 
     async def run():

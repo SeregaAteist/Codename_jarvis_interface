@@ -1,10 +1,10 @@
 """Approver — паттерн Капитана для контента Рафаила (RF-8).
 
 Рафаил готовит материал → шлёт план владельцу → ждёт решения:
-  ✅ Залити    → approved → upload-пайплайн (Drive/Moodle)
-  📝 Правки    → владелец пишет правки текстом → apply → повторный запрос
-  ❌ Відхилити → rejected (+причина)
-  👁 Переглянути → полный текст материала в чат
+  ✅ Залить     → approved → upload-пайплайн (Drive/Moodle)
+  📝 Правки     → владелец пишет правки текстом → apply → повторный запрос
+  ❌ Отклонить  → rejected (+причина)
+  👁 Посмотреть → полный текст материала в чат
 
 Декаплед от Telegram: send_func инжектируется (бот подключит в RF-12).
 Решения закрывают Future через resolve(); таймаут 24 ч → отмена.
@@ -43,19 +43,19 @@ def format_approval_message(processed: dict, sources_count: int = 1) -> str:
         if mat:
             domain = mat.get("domain") or "internal"
     lines = [
-        "📚 Рафаїл підготував матеріал",
+        "📚 Рафаил подготовил материал",
         "",
         f"📂 Домен: {_DOMAIN_ICONS.get(domain, '')} {domain}",
         f"👥 Трек: {processed.get('track', 'all')}",
         f"📋 Тип: {processed.get('content_type', '?')}",
         f"📌 Тема: {processed.get('title', '?')}",
         "",
-        "📊 Склад:",
-        f"• Джерел: {sources_count}",
-        f"• Секцій: {sections}",
+        "📊 Состав:",
+        f"• Источников: {sources_count}",
+        f"• Секций: {sections}",
     ]
     if questions:
-        lines.append(f"• Питань тесту: {questions}")
+        lines.append(f"• Вопросов теста: {questions}")
     lines += ["", f"💡 {summary}..."]
     return "\n".join(lines)
 
