@@ -21,7 +21,8 @@ QUICK_PROMPT = """Ты технический аналитик проекта JA
 Отвечай на русском. Только техническая ценность. Без воды."""
 
 
-async def quick_analyze(image_paths: list[Path], transcripts: list[str]) -> str:
+async def quick_analyze(image_paths: list[Path], transcripts: list[str],
+                        *, on_progress=None, deadline_ts=None) -> str:
     parts: list = []
     for img_path in image_paths[:8]:
         if img_path.exists():
@@ -34,7 +35,9 @@ async def quick_analyze(image_paths: list[Path], transcripts: list[str]) -> str:
         parts.append("Транскрипция/текст из видео:\n" + "\n---\n".join(transcripts))
     parts.append(QUICK_PROMPT)
     try:
-        return await router.generate("quick_analysis", parts)
+        return await router.generate("quick_analysis", parts,
+                                     on_progress=on_progress, deadline_ts=deadline_ts)
     except Exception as e:
-        logger.error("[QuickPipeline] %s", e)
-        return f"⚠️ Ошибка Gemini: {e}"
+        from shared.errors import classify, message_for
+        logger.error("[QuickPipeline] code=%s detail=%s", classify(e), e)
+        return message_for(e)  # короткое сообщение из карты, без сырого JSON

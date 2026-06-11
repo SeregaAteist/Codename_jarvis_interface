@@ -1,14 +1,19 @@
-"""Общий пул API-ключей с round-robin и cooldown.
+"""Общий пул API-ключей: round-robin + ТАЙМИРОВАННАЯ заморозка (анти-шторм).
 
-Перенесён из modules/tg-media-analyzer/pool/api_pool.py (теперь общий для всех ботов).
-Старый путь оставлен тонким shim'ом для обратной совместимости до Фазы 9.
+429/quota → ключ замораживается на длительный срок (до сброса квоты), а НЕ кладётся
+в cooldown с авто-очисткой. Если все ключи заморожены — get() возвращает None
+(обработка останавливается), вместо бесконечного реюза мёртвого ключа.
 """
 from __future__ import annotations
 
 import logging
+import time
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# Дефолтная заморозка при 429 — сутки (дневная квота Gemini сбрасывается ~раз в день).
+QUOTA_FREEZE_SECONDS = 24 * 3600
 
 
 class SimplePool:
@@ -16,23 +21,26 @@ class SimplePool:
         self.keys = list(keys)
         self.provider = provider
         self._idx = 0
-        self._cooldown: set[str] = set()
+        self._frozen: dict[str, float] = {}  # key -> момент разморозки (unix ts)
 
     def get(self) -> Optional[str]:
-        available = [k for k in self.keys if k not in self._cooldown]
+        now = time.time()
+        available = [k for k in self.keys if self._frozen.get(k, 0.0) <= now]
         if not available:
-            self._cooldown.clear()
-            available = self.keys
-        if not available:
-            return None
+            return None  # все заморожены → СТОП (без авто-разморозки)
         key = available[self._idx % len(available)]
         self._idx += 1
         return key
 
-    def report_quota_exceeded(self, key: str) -> None:
-        self._cooldown.add(key)
-        logger.warning("[Pool:%s] key moved to cooldown", self.provider)
+    def freeze(self, key: str, seconds: float) -> None:
+        self._frozen[key] = time.time() + seconds
+        logger.warning("[Pool:%s] ключ заморожен на %.0fs (до сброса квоты)", self.provider, seconds)
+
+    def report_quota_exceeded(self, key: str, seconds: float = QUOTA_FREEZE_SECONDS) -> None:
+        """429 — заморозить ключ до сброса квоты (не на секунды)."""
+        self.freeze(key, seconds)
 
     @property
     def available(self) -> bool:
-        return bool(self.keys)
+        now = time.time()
+        return any(self._frozen.get(k, 0.0) <= now for k in self.keys)

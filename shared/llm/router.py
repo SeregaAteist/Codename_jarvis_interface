@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 
+from shared import errors
 from shared.config import CFG
 from shared.llm.key_pool import SimplePool
 from shared.llm.providers import anthropic as anthropic_p
@@ -42,14 +43,30 @@ def resolve(task_type: str) -> tuple[str, str]:
     return provider, model
 
 
-async def generate(task_type: str, content) -> str:
+async def generate(task_type: str, content, *, on_progress=None, deadline_ts=None) -> str:
     """Сгенерировать ответ для роли task_type. content зависит от провайдера
-    (gemini: список частей PIL/строк; text-провайдеры: строка)."""
+    (gemini: список частей PIL/строк; text-провайдеры: строка).
+
+    on_progress(text) — статус повторов в чат (редактирование одного сообщения);
+    deadline_ts — глобальный дедлайн (таймаут media) поверх retry.
+    """
     provider, model = resolve(task_type)
     if provider == "gemini":
-        return await gemini_p.generate(
-            model, content, gemini_pool, fallback_model=CFG.GEMINI_FALLBACK_MODEL
-        )
+        state = {"fallback": False}
+
+        async def attempt():
+            try:
+                return await gemini_p.generate(
+                    model, content, gemini_pool,
+                    fallback_model=CFG.GEMINI_FALLBACK_MODEL,
+                    use_fallback=state["fallback"],
+                )
+            except Exception as e:
+                if errors.classify(e) == "GEMINI_503" and CFG.GEMINI_FALLBACK_MODEL:
+                    state["fallback"] = True  # на 503 — следующая попытка на fallback-модели
+                raise
+
+        return await errors.retry_with_backoff(attempt, on_progress=on_progress, deadline_ts=deadline_ts)
     if provider == "claude":
         return await anthropic_p.generate(model, content)
     if provider == "ollama":

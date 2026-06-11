@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import logging
+import time
 import uuid
 from pathlib import Path
 
@@ -14,8 +15,11 @@ from bot.keyboards import action_keyboard
 from db.storage import init_db, save_deferred
 from pipeline.quick import quick_analyze, _gemini_pool, QUICK_PROMPT
 from pipeline.deep import deep_analyze
+from shared.errors import message_for, user_message
 
 logger = logging.getLogger(__name__)
+
+MEDIA_TIMEOUT = 300  # сек — жёсткий глобальный таймаут на одно media (F-5)
 
 _batches: dict[tuple, list[dict]] = {}
 _batch_tasks: dict[tuple, asyncio.Task] = {}
@@ -79,13 +83,39 @@ async def _process_batch(key: tuple, items: list[dict], app) -> None:
             except Exception as e:
                 logger.error("Media error: %s", e)
 
-        # Анализ: видео — нативно через Gemini (звук+видео), фото — батчем
+        # Анализ с прогрессом (F-1/F-2), дедлайном и жёстким таймаутом 5 мин (F-5)
+        deadline = time.time() + MEDIA_TIMEOUT
+
+        async def _progress(text: str) -> None:
+            if status_msg:
+                try:
+                    await status_msg.edit_text(text)
+                except Exception:
+                    pass
+
         analyses = []
         for vid in video_paths:
-            res = await analyze_video_native(vid, QUICK_PROMPT, _gemini_pool)
+            try:
+                res = await asyncio.wait_for(
+                    analyze_video_native(vid, QUICK_PROMPT, _gemini_pool,
+                                         on_progress=_progress, deadline_ts=deadline),
+                    timeout=MEDIA_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                res = user_message("TIMEOUT")
+            except Exception as e:
+                res = message_for(e)
             analyses.append(res)
         if image_paths:
-            res = await quick_analyze(image_paths, [])
+            try:
+                res = await asyncio.wait_for(
+                    quick_analyze(image_paths, [], on_progress=_progress, deadline_ts=deadline),
+                    timeout=MEDIA_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                res = user_message("TIMEOUT")
+            except Exception as e:
+                res = message_for(e)
             analyses.append(res)
 
         quick = "\n\n---\n\n".join(analyses) if analyses else "⚠️ Нет контента"
@@ -185,10 +215,25 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     except Exception:
         pass
 
+    async def _progress(text: str) -> None:
+        if status:
+            try:
+                await status.edit_text(text)
+            except Exception:
+                pass
+
     try:
         result = await download_url(url)
         video_path = result["video_path"]
-        res = await analyze_video_native(video_path, QUICK_PROMPT, _gemini_pool)
+        deadline = time.time() + MEDIA_TIMEOUT
+        try:
+            res = await asyncio.wait_for(
+                analyze_video_native(video_path, QUICK_PROMPT, _gemini_pool,
+                                     on_progress=_progress, deadline_ts=deadline),
+                timeout=MEDIA_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            res = user_message("TIMEOUT")
         video_path.unlink(missing_ok=True)
 
         title = result["title"]
@@ -214,7 +259,7 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     except Exception as e:
         logger.error("[URL] %s", e)
         if status:
-            await status.edit_text(f"⚠️ Ошибка: {e}")
+            await status.edit_text(message_for(e))
 
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -245,13 +290,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             text="📌 Сохранено в отложенные.",
         )
     elif action == "s":
-        await query.edit_message_reply_markup(reply_markup=None)
         await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
         try:
             imgs = [Path(p) for p in entry.get("image_paths", []) if Path(p).exists()]
             instructions = await deep_analyze(entry["quick"], imgs, entry.get("transcripts", []))
         except Exception as e:
-            instructions = f"⚠️ Ошибка: {e}"
+            instructions = message_for(e)
+        ok = bool(instructions) and not instructions.lstrip().startswith("⚠️")
+        if ok:
+            # F-3: кнопки убираем ТОЛЬКО после успеха (при ошибке остаются для повтора)
+            try:
+                await query.edit_message_reply_markup(reply_markup=None)
+            except Exception:
+                pass
         chunks = [instructions[i:i+4000] for i in range(0, len(instructions), 4000)]
         for i, chunk in enumerate(chunks):
             text = f"🚀 *ИНСТРУКЦИИ:*\n\n{chunk}" if i == 0 else chunk
