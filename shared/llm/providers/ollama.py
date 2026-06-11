@@ -1,0 +1,22 @@
+"""Ollama-провайдер через HTTP (локальный сервер), без отдельного SDK.
+
+Роль 'local_chat'. Использует httpx + CFG.OLLAMA_HOST (default http://localhost:11434).
+"""
+from __future__ import annotations
+
+import logging
+
+from shared.config import CFG
+
+logger = logging.getLogger(__name__)
+
+
+async def generate(model: str, content) -> str:
+    import httpx
+
+    text = content if isinstance(content, str) else "\n".join(map(str, content))
+    payload = {"model": model, "prompt": text, "stream": False}
+    async with httpx.AsyncClient(timeout=120) as cli:
+        r = await cli.post(f"{CFG.OLLAMA_HOST}/api/generate", json=payload)
+        r.raise_for_status()
+        return r.json().get("response", "").strip()
