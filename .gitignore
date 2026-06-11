@@ -36,6 +36,8 @@ credentials.json
 service-account*.json
 secrets.*
 *.secret
+# Исключение: код-модуль загрузчика секретов (значений секретов НЕ содержит)
+!shared/config/secrets.py
 
 # ML-модели и крупные бинарники (раздувают историю → используем локально/LFS)
 *.onnx
