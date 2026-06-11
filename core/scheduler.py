@@ -61,8 +61,9 @@ scheduler: SchedulerDriver = APSchedulerDriver()
 
 
 async def morning_briefing() -> None:
-    """Заглушка утреннего брифинга — наполнится в Фазе 11 (аниме/ИИ/война/задачи)."""
-    logger.info("☀️ [morning_briefing] заглушка — здесь будет утренний дайджест")
+    """Утренний брифинг (Фаза 11): Reddit RSS → Gemini-резюме → Telegram владельцу."""
+    from agents.briefing import BriefingAgent
+    await BriefingAgent().run_briefing()
 
 
 def register_default_jobs() -> None:
