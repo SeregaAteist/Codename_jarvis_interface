@@ -140,3 +140,40 @@ async def autocommit(message: str) -> str:
     except asyncio.TimeoutError:
         proc.kill()
         return "⚠️ commit timeout"
+
+
+from executor.base import TaskExecutor  # noqa: E402 (в конце — после определения функций)
+
+
+class SshExecutor(TaskExecutor):
+    """Рабочий драйвер (default): задачи Claude Code через SSH-watcher (task_watcher.sh).
+
+    Оборачивает существующие функции, синхронный план/исполнение сохранены —
+    task_handler работает через эту обёртку, поток SSH не меняется.
+    """
+
+    async def get_plan(self, task_content: str) -> str:
+        return await get_plan(task_content)
+
+    async def execute_task(self, task_content: str) -> str:
+        return await execute_task(task_content)
+
+    async def autocommit(self, message: str) -> str:
+        return await autocommit(message)
+
+    # --- интерфейс очереди (паритет с local-драйвером) ---
+    async def submit(self, task: dict) -> str:
+        if not SSH_HOST:
+            return ""
+        task_id = uuid.uuid4().hex[:8]
+        prompt = task.get("prompt") or task.get("content") or ""
+        await _write_file(f"{TASKS_DIR}/pending/TASK_{task_id}.md", prompt)
+        return task_id
+
+    async def status(self, task_id) -> str:
+        if not SSH_HOST:
+            return "unknown"
+        ex = await _ssh(
+            f"test -f {TASKS_DIR}/done/TASK_{task_id}.result && echo yes || echo no", timeout=10
+        )
+        return "done" if ex.strip() == "yes" else "pending"

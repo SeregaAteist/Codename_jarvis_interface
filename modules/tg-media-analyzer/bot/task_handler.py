@@ -6,10 +6,14 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 import config
-from executor.ssh_executor import get_plan, execute_task
+from executor import get_executor
 from pipeline.task_builder import build_task
 
 logger = logging.getLogger(__name__)
+
+# Исполнитель задач через абстракцию. default = SSH-драйвер (CFG.EXECUTOR=ssh);
+# переключение на local — отдельным шагом (тогда же адаптируется этот хендлер).
+_executor = get_executor()
 
 
 def approve_keyboard(store_key: str) -> InlineKeyboardMarkup:
@@ -49,7 +53,7 @@ async def handle_manual_task(update, context: ContextTypes.DEFAULT_TYPE) -> None
     status = await msg.reply_text("🧠 Составляю план выполнения...")
 
     try:
-        plan = await get_plan(task_content)
+        plan = await _executor.get_plan(task_content)
     except Exception as e:
         plan = f"⚠️ Ошибка планирования: {e}"
 
@@ -118,7 +122,7 @@ async def handle_task_callback(update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
 
         try:
-            result = await execute_task(entry["content"])
+            result = await _executor.execute_task(entry["content"])
         except Exception as e:
             result = f"⚠️ Ошибка: {e}"
 
@@ -138,8 +142,7 @@ async def handle_task_callback(update, context: ContextTypes.DEFAULT_TYPE) -> No
         # Git commit автоматически — сообщение через stdin (git commit -F -),
         # без интерполяции в shell; путь репозитория из env (REPO_DIR ← TASKS_DIR).
         try:
-            from executor.ssh_executor import autocommit
             commit_title = entry["title"][:50].replace("\n", " ")
-            await autocommit(f"feat: {commit_title}")
+            await _executor.autocommit(f"feat: {commit_title}")
         except Exception:
             pass
