@@ -21,10 +21,10 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/Users/seregaateist/Projects/jarvis/modules/tg-media-analyzer/logs/bot.log</string>
+    <string>/Users/seregaateist/Projects/jarvis/modules/tg-media-analyzer/logs/bot.stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/seregaateist/Projects/jarvis/modules/tg-media-analyzer/logs/bot.log</string>
+    <string>/Users/seregaateist/Projects/jarvis/modules/tg-media-analyzer/logs/bot.stdout.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>

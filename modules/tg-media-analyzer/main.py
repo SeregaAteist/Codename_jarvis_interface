@@ -8,14 +8,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 from telegram.ext import Application, CallbackQueryHandler, MessageHandler, filters
 
 import config
+from shared.logging_setup import setup_logging
 from bot.handlers import handle_media, handle_callback, handle_url
 from bot.task_handler import handle_task_callback, handle_manual_task
 from db.storage import init_db
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+# S-1/S-2: маскировка токена/ключей + httpx→WARNING + ротация 10MB×5.
+setup_logging(Path(__file__).parent / "logs" / "bot.log", console=False)
 logger = logging.getLogger(__name__)
 
 
