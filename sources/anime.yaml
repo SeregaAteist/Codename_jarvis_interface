@@ -1,0 +1,15 @@
+# Источники аниме. Новый источник = новая запись здесь, без изменения кода.
+sources:
+  animevost:
+    base_url: "https://animevost.org"
+    api_url: "https://api.animevost.org/v1"   # проверено A-4: живой, публичный, {state,data}
+    endpoints:
+      last: "/last"
+      search: "/search"
+      info: "/info"
+    parser: api          # api живой → api; html.py — fallback
+    schedule: "0 */3 * * *"
+    limit: 20
+    timeout: 30
+
+  # будущие источники (anilibria и т.п.) добавляются сюда без правок кода

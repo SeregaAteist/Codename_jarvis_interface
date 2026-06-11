@@ -6,3 +6,5 @@ python-dotenv==1.0.1
 aiofiles==23.2.1
 apscheduler>=3.10
 pytest>=8.0
+beautifulsoup4
+lxml
