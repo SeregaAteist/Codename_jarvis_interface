@@ -1,0 +1,12 @@
+Створи {count} тестових питань для Moodle на основі:
+{module_content}
+
+Формат JSON:
+[{"question": "...", "type": "multichoice", "answers": [
+  {"text": "...", "correct": true, "feedback": "пояснення"},
+  {"text": "...", "correct": false},
+  {"text": "...", "correct": false},
+  {"text": "...", "correct": false}
+]}]
+
+Питання практичні. Один правильний варіант. ТІЛЬКИ JSON.

@@ -1,0 +1,20 @@
+# Домен: СЕС (сонячні електростанції) — проектування, обладнання, монтаж
+domain: ses
+sources:
+  - name: Ecotown
+    url: https://ecotown.com.ua/feed/
+    type: rss
+    track: all
+  - name: Kosatka Media
+    url: https://kosatka.media/rss
+    type: rss
+    track: all
+  - name: Avenston Blog
+    url: https://avenston.com/articles/
+    type: web
+    selector: "article h2 a"
+    track: engineers
+  - name: PV Magazine
+    url: https://www.pv-magazine.com/feed/
+    type: rss
+    track: engineers

@@ -43,6 +43,42 @@ def parse_atom(xml_text: str, source: str = "", limit: int = 20, hours: int | No
     return out
 
 
+def parse_rss2(xml_text: str, source: str = "", limit: int = 20, hours: int | None = None) -> list[dict]:
+    """RSS 2.0 (<rss><channel><item>) → тот же формат, что parse_atom."""
+    try:
+        root = ET.fromstring(xml_text)
+    except Exception as e:
+        logger.warning("[rss] %s: ошибка XML: %s", source, e)
+        return []
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours) if hours else None
+    out: list[dict] = []
+    for item in root.iter("item"):
+        title = (item.findtext("title") or "").strip()
+        url = (item.findtext("link") or "").strip()
+        published = item.findtext("pubDate") or ""
+        dt = None
+        try:
+            if published:
+                from email.utils import parsedate_to_datetime
+                dt = parsedate_to_datetime(published)
+        except Exception:
+            dt = None
+        if cutoff and dt and dt < cutoff:
+            continue
+        out.append({"title": title, "url": url,
+                    "published": dt.isoformat() if dt else None, "source": source})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def parse_feed(xml_text: str, source: str = "", limit: int = 20, hours: int | None = None) -> list[dict]:
+    """Автоопределение формата: Atom или RSS 2.0."""
+    if "<rss" in xml_text[:500]:
+        return parse_rss2(xml_text, source, limit, hours)
+    return parse_atom(xml_text, source, limit, hours)
+
+
 class RssParser(BaseParser):
     def __init__(self, timeout: int = 15):
         self.timeout = timeout
@@ -53,7 +89,7 @@ class RssParser(BaseParser):
             async with httpx.AsyncClient(timeout=self.timeout, headers={"User-Agent": _UA}) as cli:
                 r = await cli.get(url)
                 r.raise_for_status()
-                return parse_atom(r.text, source or url, limit, hours)
+                return parse_feed(r.text, source or url, limit, hours)
         except Exception as e:
             logger.warning("[rss] %s недоступен: %s", url, e)
             return []

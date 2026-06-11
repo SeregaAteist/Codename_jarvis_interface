@@ -1,0 +1,21 @@
+# Конфиг модуля Рафаил (корпоративная БЗ LK Energy Group).
+# Секреты (MOODLE_TOKEN, GOOGLE_SA_JSON, KOMMO_*, RINGOSTAT_*) — в корневом .env.
+
+telegram:
+  token_env: TELEGRAM_BOT_TOKEN   # шлём через основного бота (топики)
+
+llm:
+  gemini_model: gemini-2.5-flash
+  gemini_fallback_model: gemini-2.5-pro
+  claude_model: claude-fable-5
+  ollama_model: llama3.2
+  roles:
+    course_section: gemini/gemini-2.5-pro    # качество важнее скорости
+    quiz: gemini/gemini-2.5-flash
+    case_study: gemini/gemini-2.5-flash
+    summary: gemini/gemini-2.5-flash
+
+rafail:
+  approval_timeout_hours: 24
+  collect_hours: 48                # свежесть RSS при ежедневном сборе
+  quiz_questions: 7                # 5-10 по ТЗ

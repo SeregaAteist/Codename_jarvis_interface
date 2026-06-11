@@ -1,0 +1,11 @@
+# Домен: продажі — техніки, переговори, B2B/B2C
+domain: sales
+sources:
+  - name: HubSpot Sales Blog
+    url: https://blog.hubspot.com/sales/rss.xml
+    type: rss
+    track: sales
+  - name: Close Blog
+    url: https://www.close.com/blog/rss.xml
+    type: rss
+    track: sales

@@ -1,0 +1,16 @@
+# Домен: енергетика — законодавство, ринок, НКРЕКП, ДТЕК
+domain: energy
+sources:
+  - name: НКРЕКП Новини
+    url: https://www.nerc.gov.ua/news
+    type: web
+    selector: ".news-item a"
+    track: engineers
+  - name: Energo UA
+    url: https://enkorr.ua/rss
+    type: rss
+    track: all
+  - name: ExPro Electricity
+    url: https://expro.com.ua/rss
+    type: rss
+    track: engineers
