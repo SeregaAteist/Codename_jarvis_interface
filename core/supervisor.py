@@ -69,7 +69,7 @@ class Supervisor(BaseAgent):
         await bus.emit("task.assigned", {"capability": capability})
         try:
             result = await registry.dispatch(capability, self._as_task(payload))
-            await bus.emit("task.completed", {"capability": capability, "ok": True})
+            await bus.emit("task.completed", {"capability": capability, "ok": True, "result": result})
             return {"status": "done", "capability": capability, "result": result}
         except Exception as e:  # noqa: BLE001
             await bus.emit("task.failed", {"capability": capability, "error": str(e)})

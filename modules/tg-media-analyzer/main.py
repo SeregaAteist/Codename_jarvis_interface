@@ -11,6 +11,7 @@ import config
 from shared.logging_setup import setup_logging
 from bot.handlers import handle_media, handle_callback, handle_url
 from bot.task_handler import handle_task_callback, handle_manual_task
+from bot.supervisor_bridge import setup_supervisor, handle_supervisor_callback
 from db.storage import init_db
 
 # S-1/S-2: маскировка токена/ключей + httpx→WARNING + ротация 10MB×5.
@@ -39,6 +40,10 @@ def build_app() -> Application:
     # Callbacks
     app.add_handler(CallbackQueryHandler(handle_callback,      pattern=r"^[sdx]:"))
     app.add_handler(CallbackQueryHandler(handle_task_callback, pattern=r"^(approve|cancel):"))
+    app.add_handler(CallbackQueryHandler(handle_supervisor_callback, pattern=r"^sup_(ok|no):"))
+
+    # Капитан: approve_callback на TG-кнопках + уведомления о результате
+    setup_supervisor(app)
 
     return app
 
