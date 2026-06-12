@@ -11,6 +11,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 DBS=(
     "$ROOT/data/sqlite/jarvis.db"
     "$ROOT/modules/tg-media-analyzer/data/media_analyzer.db"
+    "$ROOT/data/sqlite/rafail.db"
 )
 
 for db in "${DBS[@]}"; do
