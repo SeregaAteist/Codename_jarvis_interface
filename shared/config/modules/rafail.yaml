@@ -1,26 +1,10 @@
-# Конфиг модуля Рафаил (корпоративная БЗ LK Energy Group).
-# Секреты (MOODLE_TOKEN, GOOGLE_SA_JSON, KOMMO_*, RINGOSTAT_*) — в корневом .env.
+# Конфиг модуля Рафаил. Вся рабочая конфигурация (источники, промпты,
+# Drive-папки, настройки) — в rafail.db, управление TG-кнопками.
+# Здесь только то, что нужно до подключения БД.
 
 telegram:
   token_env: TELEGRAM_BOT_TOKEN   # шлём через основного бота (топики)
 
-llm:
-  gemini_model: gemini-2.5-flash
-  gemini_fallback_model: gemini-2.5-pro
-  claude_model: claude-fable-5
-  ollama_model: llama3.2
-  roles:
-    course_section: gemini/gemini-2.5-pro    # качество важнее скорости
-    quiz: gemini/gemini-2.5-flash
-    case_study: gemini/gemini-2.5-flash
-    summary: gemini/gemini-2.5-flash
-
 rafail:
-  approval_timeout_hours: 24
-  collect_hours: 48                # свежесть RSS при ежедневном сборе
-  quiz_questions: 7                # 5-10 по ТЗ
-  # Квизы создаются вручную один раз на модуль; ID сюда (RF-10).
-  # category_id — категория банка вопросов модуля (Question bank → категория).
-  quizzes: {}
-  #   М1: {quiz_id: 0, category_id: 0}
-  #   М2: {quiz_id: 0, category_id: 0}
+  db_path: data/sqlite/rafail.db
+  owner_id: 374728252

@@ -18,5 +18,8 @@ def connect() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    from modules.rafail.db.seed import seed
+
     with connect() as c:
         c.executescript(_SCHEMA.read_text(encoding="utf-8"))
+        seed(c)

@@ -50,6 +50,19 @@ class DriveConnector:
         self._sa_json = sa_json or opt("GOOGLE_SA_JSON")
         self._svc = None
 
+    def folder(self, key: str) -> str:
+        """ID папки: приоритет — таблица drive_folders (БД), затем дефолты класса."""
+        try:
+            from modules.rafail import knowledge_base as kb
+            folders = kb.get_folders()
+        except Exception:
+            folders = {}
+        if key in folders:
+            return folders[key]
+        if key in self.FOLDER_IDS:
+            return self.FOLDER_IDS[key]
+        raise KeyError(f"Drive-папка '{key}' не найдена ни в БД, ни в дефолтах")
+
     # ── транспорт ─────────────────────────────────────────────────────────────
 
     def _service(self):

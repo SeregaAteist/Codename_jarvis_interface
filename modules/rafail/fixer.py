@@ -57,7 +57,7 @@ async def fix_module(
     folder_key: str = "course_ses",
 ) -> dict:
     """Полный цикл слияния правок одного модуля. Возвращает итог."""
-    files = await drive.list_folder(drive.FOLDER_IDS[folder_key])
+    files = await drive.list_folder(drive.folder(folder_key))
     module_file, plus_file = match_module_files(files, module)
 
     if not module_file:
@@ -93,7 +93,7 @@ async def fix_module(
 
     # upload новой версии в Drive
     new_name = f"{module_file['name'].rsplit('.', 1)[0]}_v2_merged.md"
-    uploaded = await drive.upload_file(merged, new_name, drive.FOLDER_IDS[folder_key])
+    uploaded = await drive.upload_file(merged, new_name, drive.folder(folder_key))
     kb.map_moodle(pid, drive_file_id=uploaded.get("id", ""))
     kb.mark_uploaded(pid)
     kb.log_sync("fix_module", "ok", f"{module} → {uploaded.get('id')}")

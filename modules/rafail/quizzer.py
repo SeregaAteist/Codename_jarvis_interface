@@ -18,9 +18,6 @@ from __future__ import annotations
 import json
 import logging
 
-import yaml
-from pathlib import Path
-
 from modules.rafail import knowledge_base as kb
 from modules.rafail import processor
 from modules.rafail.approver import RafailApprover
@@ -28,18 +25,14 @@ from modules.rafail.connectors.moodle import MoodleConnector
 
 logger = logging.getLogger(__name__)
 
-_RAFAIL_YAML = Path(__file__).parent.parent.parent / "shared" / "config" / "modules" / "rafail.yaml"
-
 
 def quiz_map() -> dict:
-    """Секция rafail.quizzes из rafail.yaml: {М1: {quiz_id, category_id}, ...}."""
-    data = yaml.safe_load(_RAFAIL_YAML.read_text(encoding="utf-8")) or {}
-    return (data.get("rafail") or {}).get("quizzes") or {}
+    """Настройка quizzes из БД: {М1: {quiz_id, category_id}, ...}."""
+    return json.loads(kb.get_setting("quizzes", "{}"))
 
 
 def quiz_questions_count() -> int:
-    data = yaml.safe_load(_RAFAIL_YAML.read_text(encoding="utf-8")) or {}
-    return int((data.get("rafail") or {}).get("quiz_questions", 7))
+    return int(kb.get_setting("quiz_questions", "7"))
 
 
 async def generate_quiz_for_module(

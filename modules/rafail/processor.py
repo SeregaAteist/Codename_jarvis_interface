@@ -2,20 +2,18 @@
 
 Использует shared/llm: общий пул ключей Gemini + провайдер с safety off.
 Результаты пишутся в processed со статусом pending (ждут одобрения).
+Промпты — в таблице prompts (rafail.db), редактируются TG-кнопками.
 """
 from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 
 from shared.llm.providers import gemini as gemini_p
 from shared.llm.router import gemini_pool
 from modules.rafail import knowledge_base as kb
 
 logger = logging.getLogger(__name__)
-
-PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 MODEL = "gemini-2.5-flash"
 MODEL_QUALITY = "gemini-2.5-pro"   # course_section: качество важнее скорости
@@ -29,7 +27,8 @@ _ROLE_BY_TRACK = {
 
 
 def load_prompt(name: str) -> str:
-    return (PROMPTS_DIR / f"{name}.txt").read_text(encoding="utf-8")
+    """Промпт из БД (seed заполняет дефолты при init_db)."""
+    return kb.get_prompt(name)
 
 
 async def _generate(prompt: str, quality: bool = False) -> str:

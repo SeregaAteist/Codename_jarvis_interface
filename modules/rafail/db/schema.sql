@@ -42,6 +42,37 @@ CREATE TABLE IF NOT EXISTS sync_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Конфигурация в БД (RF-12): источники, промпты, Drive-папки, настройки
+CREATE TABLE IF NOT EXISTS sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain TEXT NOT NULL,        -- ses / energy / sales
+    name TEXT NOT NULL,
+    url TEXT UNIQUE NOT NULL,
+    type TEXT DEFAULT 'rss',     -- rss / web
+    selector TEXT,               -- css-селектор для type=web
+    track TEXT DEFAULT 'all',
+    enabled INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS prompts (
+    name TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS drive_folders (
+    key TEXT PRIMARY KEY,
+    folder_id TEXT NOT NULL,
+    title TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_materials_domain ON materials(domain);
 CREATE INDEX IF NOT EXISTS idx_materials_track ON materials(track);
 CREATE INDEX IF NOT EXISTS idx_processed_status ON processed(status);

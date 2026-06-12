@@ -34,6 +34,9 @@ def test_fix_module_full_cycle(tmp_path, monkeypatch):
         FOLDER_IDS = {"course_ses": "FOLDER"}
         uploaded = {}
 
+        def folder(self, key):
+            return self.FOLDER_IDS[key]
+
         async def list_folder(self, folder_id):
             return [
                 {"id": "m1", "name": "М1. Ринок СЕС.docx"},
@@ -73,6 +76,8 @@ def test_fix_module_rejected_stops_upload(tmp_path, monkeypatch):
 
     class FakeDrive:
         FOLDER_IDS = {"course_ses": "F"}
+        def folder(self, key):
+            return self.FOLDER_IDS[key]
         async def list_folder(self, folder_id):
             return [{"id": "m", "name": "М3 модуль"}, {"id": "p", "name": "М3 ++"}]
         async def read_file(self, file_id):
@@ -97,6 +102,8 @@ def test_fix_module_missing_files(tmp_path, monkeypatch):
 
     class EmptyDrive:
         FOLDER_IDS = {"course_ses": "F"}
+        def folder(self, key):
+            return self.FOLDER_IDS[key]
         async def list_folder(self, folder_id):
             return []
 

@@ -1,16 +1,13 @@
 """Collector — сбор материалов из всех источников (RF-5/RF-6).
 
-RF-5: RSS + web (sources/*.yaml) → materials с дедупом по URL.
-RF-6: Drive (модули курса), CRM (Kommo), Ringostat — добавляются как
-      отдельные collect_*-функции; CRM/Ringostat активируются когда
-      появятся токены в .env (KOMMO_*, RINGOSTAT_*).
+RF-5: RSS + web (таблица sources в rafail.db) → materials с дедупом по URL.
+RF-6: Drive (модули курса), CRM (Kommo), Ringostat — отдельные
+      collect_*-функции; CRM/Ringostat активируются когда появятся
+      токены в .env (KOMMO_*, RINGOSTAT_*).
 """
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-
-import yaml
 
 from core.parsers.html import HtmlParser
 from core.parsers.rss import RssParser
@@ -19,21 +16,10 @@ from shared.config.secrets import opt
 
 logger = logging.getLogger(__name__)
 
-SOURCES_DIR = Path(__file__).parent / "sources"
-
 
 def load_sources(domain: str = "") -> list[dict]:
-    """Источники из sources/*.yaml. Каждый: {name,url,type,track,domain,selector?}."""
-    out: list[dict] = []
-    for f in sorted(SOURCES_DIR.glob("*.yaml")):
-        data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
-        dom = data.get("domain", f.stem)
-        if domain and dom != domain:
-            continue
-        for src in data.get("sources", []):
-            src["domain"] = dom
-            out.append(src)
-    return out
+    """Активные источники из БД (таблица sources, управление — TG-кнопками)."""
+    return kb.get_sources(domain=domain, enabled_only=True)
 
 
 # ── RSS / web (RF-5) ──────────────────────────────────────────────────────────

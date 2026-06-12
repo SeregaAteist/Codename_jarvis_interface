@@ -42,7 +42,8 @@ def test_notebooklm_fails_without_folder():
 
 # ── RF-5: sources + collector ─────────────────────────────────────────────────
 
-def test_load_sources_all_domains():
+def test_load_sources_all_domains(tmp_path, monkeypatch):
+    _fresh_db(tmp_path, monkeypatch)  # seed заполняет таблицу sources
     from modules.rafail import collector
 
     sources = collector.load_sources()
