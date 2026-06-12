@@ -7,8 +7,12 @@ import httpx
 logger = logging.getLogger(__name__)
 
 DOMAIN = os.getenv("KOMMO_DOMAIN", "lkenergy.kommo.com")
-TOKEN = os.getenv("KOMMO_TOKEN", "")
 BASE = f"https://{DOMAIN}/api/v4"
+
+
+def _headers() -> dict:
+    # токен читается при вызове, не при импорте — иначе пустой до load_dotenv
+    return {"Authorization": f"Bearer {os.getenv('KOMMO_TOKEN', '')}"}
 
 
 async def find_contact_by_phone(phone: str) -> dict | None:
@@ -16,7 +20,7 @@ async def find_contact_by_phone(phone: str) -> dict | None:
     clean = "".join(filter(str.isdigit, phone))[-10:]
     async with httpx.AsyncClient(timeout=10) as c:
         r = await c.get(f"{BASE}/contacts",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers=_headers(),
             params={"query": phone, "limit": 5})
         data = r.json()
     contacts = data.get("_embedded", {}).get("contacts", [])
@@ -32,7 +36,7 @@ async def find_lead_by_contact(contact_id: int) -> dict | None:
     """Последняя активная сделка контакта."""
     async with httpx.AsyncClient(timeout=10) as c:
         r = await c.get(f"{BASE}/contacts/{contact_id}",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers=_headers(),
             params={"with": "leads"})
         data = r.json()
     leads = data.get("_embedded", {}).get("leads", [])
@@ -41,7 +45,7 @@ async def find_lead_by_contact(contact_id: int) -> dict | None:
     lead_id = leads[-1]["id"]
     async with httpx.AsyncClient(timeout=10) as c:
         r = await c.get(f"{BASE}/leads/{lead_id}",
-            headers={"Authorization": f"Bearer {TOKEN}"})
+            headers=_headers())
         return r.json()
 
 

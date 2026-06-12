@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 
 from shared.llm.providers import gemini as gemini_p
 from shared.llm.router import gemini_pool
@@ -15,8 +16,8 @@ from modules.rafail import knowledge_base as kb
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemini-2.5-flash"
-MODEL_QUALITY = "gemini-2.5-flash"  # pro недоступен на free tier
+MODEL = os.getenv("RAFAIL_MODEL", "gemini-2.5-flash")
+MODEL_QUALITY = os.getenv("RAFAIL_MODEL_QUALITY", "gemini-2.5-flash")  # pro недоступен на free tier
 
 _ROLE_BY_TRACK = {
     "sales": "менеджер з продажу",
