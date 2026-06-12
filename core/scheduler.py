@@ -66,9 +66,26 @@ async def morning_briefing() -> None:
     await BriefingAgent().run_briefing()
 
 
+async def anime_check() -> None:
+    """Проверка новых серий (A-11): dispatcher → matcher → уведомление владельцу."""
+    from telegram import Bot
+
+    from agents.anime import AnimeAgent
+    from shared.config import CFG
+
+    async def notify(text: str, url: str | None) -> None:
+        bot = Bot(CFG.TELEGRAM_TOKEN)
+        async with bot:
+            await bot.send_message(chat_id=CFG.OWNER_USER_ID, text=text)
+
+    result = await AnimeAgent(notify_func=notify).check_new_episodes()
+    logger.info("[scheduler] anime_check: %s", result)
+
+
 def register_default_jobs() -> None:
     """Стартовые задачи. Вызвать перед scheduler.start()."""
     scheduler.schedule("morning_briefing", "0 8 * * *", morning_briefing)  # 08:00 ежедневно
+    scheduler.schedule("anime_check", "0 */3 * * *", anime_check)          # каждые 3 часа
 
 
 def main() -> None:

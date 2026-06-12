@@ -9,7 +9,7 @@ sources:
       info: "/info"
     parser: api          # api живой → api; html.py — fallback
     schedule: "0 */3 * * *"
-    limit: 20
+    limit: 100
     timeout: 30
 
   # будущие источники (anilibria и т.п.) добавляются сюда без правок кода
