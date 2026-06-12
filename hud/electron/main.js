@@ -57,8 +57,8 @@ async function startPython() {
     console.log('[python] already running on 7734 — skipping')
     return
   }
-  const jarvisDir = path.join(os.homedir(), 'jarvis')
-  pythonProcess = spawn('python3', [path.join(jarvisDir, 'main.py')], {
+  const jarvisDir = path.join(os.homedir(), 'Projects', 'jarvis')
+  pythonProcess = spawn('python3', [path.join(jarvisDir, 'core', 'main.py')], {
     cwd: jarvisDir,
     env: { ...process.env, JARVIS_TOKEN: TOKEN }
   })

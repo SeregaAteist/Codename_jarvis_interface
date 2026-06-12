@@ -36,7 +36,11 @@ def parse_atom(xml_text: str, source: str = "", limit: int = 20, hours: int | No
             dt = None
         if cutoff and dt and dt < cutoff:
             continue
-        out.append({"title": title, "url": url,
+        body = (
+            entry.findtext("atom:content", default="", namespaces=_NS) or
+            entry.findtext("atom:summary", default="", namespaces=_NS) or ""
+        ).strip()
+        out.append({"title": title, "url": url, "body": body,
                     "published": dt.isoformat() if dt else None, "source": source})
         if len(out) >= limit:
             break
@@ -65,7 +69,13 @@ def parse_rss2(xml_text: str, source: str = "", limit: int = 20, hours: int | No
             dt = None
         if cutoff and dt and dt < cutoff:
             continue
-        out.append({"title": title, "url": url,
+        # полный текст: content:encoded > description > summary
+        body = (
+            item.findtext("{http://purl.org/rss/1.0/modules/content/}encoded") or
+            item.findtext("description") or
+            item.findtext("summary") or ""
+        ).strip()
+        out.append({"title": title, "url": url, "body": body,
                     "published": dt.isoformat() if dt else None, "source": source})
         if len(out) >= limit:
             break
@@ -86,7 +96,7 @@ class RssParser(BaseParser):
     async def fetch(self, url: str, hours: int | None = 24, limit: int = 20, source: str = "") -> list[dict]:
         import httpx
         try:
-            async with httpx.AsyncClient(timeout=self.timeout, headers={"User-Agent": _UA}) as cli:
+            async with httpx.AsyncClient(timeout=self.timeout, headers={"User-Agent": _UA}, follow_redirects=True) as cli:
                 r = await cli.get(url)
                 r.raise_for_status()
                 return parse_feed(r.text, source or url, limit, hours)
