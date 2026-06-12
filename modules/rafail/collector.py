@@ -35,7 +35,7 @@ async def collect_rss(source: dict, hours: int | None = 48, limit: int = 10) -> 
             continue
         kb.add_material(
             domain=source["domain"], track=source.get("track", "all"),
-            title=p["title"], raw_content=p["title"],
+            title=p["title"], raw_content=p.get("body") or p["title"],
             source_url=p["url"], source_type="rss",
         )
         added += 1
@@ -87,7 +87,27 @@ async def collect_all(domain: str = "", hours: int | None = 48) -> dict:
     total = sum(summary.values())
     kb.log_sync("collect", "ok", f"domain={domain or 'all'} added={total}")
     logger.info("[collector] собрано %d новых материалов: %s", total, summary)
+    cleaned = cleanup_materials(days=7)
+    if cleaned:
+        logger.info("[collector] очищено %d устаревших материалов", cleaned)
     return summary
+
+
+def cleanup_materials(days: int = 7) -> int:
+    """RF-5.2: materials — временный буфер. Удалить обработанные и старые."""
+    from modules.rafail import db
+
+    with db.connect() as c:
+        deleted = c.execute("""
+            DELETE FROM materials WHERE id IN (
+                SELECT DISTINCT material_id FROM processed WHERE material_id IS NOT NULL
+            )
+        """).rowcount
+        deleted += c.execute(
+            "DELETE FROM materials WHERE collected_at < datetime('now', ?)",
+            (f"-{days} days",),
+        ).rowcount
+    return deleted
 
 
 # ── Drive (RF-6) ──────────────────────────────────────────────────────────────
