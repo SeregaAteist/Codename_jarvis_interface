@@ -1,6 +1,0 @@
-# Конфиг anime-модуля (Фаза 14). owner/токены — из .env (CFG).
-check_schedule: "0 */3 * * *"          # проверка новых серий каждые 3 часа
-min_watchlist_for_recommendations: 5
-shikimori_sync_schedule: "0 9 * * *"   # синхронизация раз в сутки (если токен есть)
-
-db_path: "data/sqlite/anime.db"        # отдельно от jarvis.db

@@ -24,7 +24,8 @@ _SAFETY_CATS = (
 def _text(response) -> str:
     try:
         return response.text
-    except Exception:
+    except Exception as e:
+        logger.debug("[gemini] response.text недоступен (%s), извлекаю из candidates", e)
         for c in getattr(response, "candidates", []) or []:
             for p in c.content.parts:
                 if getattr(p, "text", ""):

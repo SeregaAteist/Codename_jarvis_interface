@@ -243,5 +243,6 @@ async def is_relevant(title: str) -> bool:
     try:
         result = await _generate(prompt, quality=False)
         return "YES" in result.strip().upper()
-    except Exception:
+    except Exception as e:
+        logger.warning("[processor] is_relevant ошибка для '%s': %s — пропускаем", title, e)
         return True  # при ошибке — пропускаем, не блокируем пайплайн

@@ -45,8 +45,8 @@ async def deep_analyze(quick_summary: str, image_paths: list[Path], transcripts:
     for img_path in valid:
         try:
             parts.append(PIL.Image.open(img_path))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("[DeepPipeline] не удалось открыть изображение %s: %s", img_path, e)
     if transcripts:
         parts.append("Транскрипция/текст:\n" + "\n---\n".join(transcripts))
     if quick_summary:

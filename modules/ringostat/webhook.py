@@ -1,6 +1,6 @@
 """Ringostat webhook receiver — порт 7736."""
 from __future__ import annotations
-import json, logging, os, time
+import json, logging, os, secrets, time
 from collections import deque
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
 
-WEBHOOK_SECRET = os.getenv("RINGOSTAT_WEBHOOK_SECRET", "jarvis-ringostat-2026")
+# fail-closed: без RINGOSTAT_WEBHOOK_SECRET в .env все запросы отклоняются
+WEBHOOK_SECRET = os.getenv("RINGOSTAT_WEBHOOK_SECRET", "")
 KOMMO_DOMAIN = os.getenv("KOMMO_DOMAIN", "lkenergy.kommo.com")
 
 # rate limit: эндпоинт публичный (Tailscale Funnel) — не больше 60 хитов/мин
@@ -31,8 +32,8 @@ def _rate_ok() -> bool:
 async def ringostat_webhook(request: Request):
     if not _rate_ok():
         raise HTTPException(status_code=429, detail="Too Many Requests")
-    token = request.headers.get("X-Webhook-Secret") or request.query_params.get("secret")
-    if token != WEBHOOK_SECRET:
+    token = request.headers.get("X-Webhook-Secret") or request.query_params.get("secret") or ""
+    if not WEBHOOK_SECRET or not secrets.compare_digest(token, WEBHOOK_SECRET):
         raise HTTPException(status_code=403, detail="Forbidden")
 
     data = await request.json()

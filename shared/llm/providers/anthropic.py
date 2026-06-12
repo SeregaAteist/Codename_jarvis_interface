@@ -22,10 +22,20 @@ async def generate(model: str, content, max_tokens: int = 2048) -> str:
     text = content if isinstance(content, str) else "\n".join(map(str, content))
 
     def _call():
-        resp = client.messages.create(
-            model=model, max_tokens=max_tokens,
-            messages=[{"role": "user", "content": text}],
-        )
-        return resp.content[0].text
+        try:
+            resp = client.messages.create(
+                model=model, max_tokens=max_tokens,
+                messages=[{"role": "user", "content": text}],
+            )
+            return resp.content[0].text
+        except Exception as e:
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            if status == 429:
+                logger.warning("[anthropic] rate limit 429: %s", e)
+            elif status and status >= 500:
+                logger.warning("[anthropic] сервис недоступен %d: %s", status, e)
+            else:
+                logger.error("[anthropic] ошибка API: %s", e)
+            raise
 
     return await asyncio.to_thread(_call)

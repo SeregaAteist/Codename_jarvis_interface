@@ -1,0 +1,27 @@
+# Единый кросс-модульный конфиг JARVIS.
+# Сервисные данные (kommo, ringostat, rafail и т.д.) НЕ дублировать здесь —
+# они живут в shared/config/modules/<name>.yaml и доступны через
+# loader.get("services.<name>...."). Секреты — только в .env.
+
+ports:
+  hud: 3000
+  api: 7734
+  mcp: 7735
+  ringostat: 7736
+
+services:
+  ringostat:
+    project_id: 167416
+    webhook_path: /webhook/ringostat
+
+# Приоритетные модели. Ботовые дефолты пока остаются в
+# shared/config/base.py DEFAULTS (TODO: мигрировать сюда одной фазой).
+models:
+  primary: gemini-2.5-flash
+  fallback: gemini-2.0-flash
+  filter: gemini-2.0-flash  # haiku-задачи
+
+logging:
+  level: INFO
+  max_bytes: 10485760  # 10MB
+  backup_count: 3

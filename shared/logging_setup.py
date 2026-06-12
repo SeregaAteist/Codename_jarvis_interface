@@ -67,3 +67,26 @@ def setup_logging(log_file, level: int = logging.INFO, console: bool = True) -> 
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     return root
+
+
+def setup(name: str, log_dir: str = "~/Projects/jarvis/logs",
+          level: int = logging.INFO) -> logging.Logger:
+    """Именованный логгер с ротацией и маскировкой — для скриптов вне launchd.
+
+    Сервисы под launchd уже пишут stdout/stderr в logs/*.log (plist),
+    им файловый хэндлер НЕ нужен — будет дублирование.
+    """
+    logs = Path(log_dir).expanduser()
+    logs.mkdir(exist_ok=True)
+
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    if any(isinstance(h, RotatingFileHandler) for h in logger.handlers):
+        return logger  # уже настроен — не плодим хэндлеры
+
+    fh = RotatingFileHandler(logs / f"{name}.log", maxBytes=10 * 1024 * 1024,
+                             backupCount=3, encoding="utf-8")
+    fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+    fh.addFilter(SecretMaskFilter())
+    logger.addHandler(fh)
+    return logger

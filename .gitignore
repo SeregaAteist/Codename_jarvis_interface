@@ -49,3 +49,4 @@ secrets.*
 *.ckpt
 **/models/
 hud/voice/models/
+shared/config/modules/

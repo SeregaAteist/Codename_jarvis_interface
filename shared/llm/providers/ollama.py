@@ -17,6 +17,13 @@ async def generate(model: str, content) -> str:
     text = content if isinstance(content, str) else "\n".join(map(str, content))
     payload = {"model": model, "prompt": text, "stream": False}
     async with httpx.AsyncClient(timeout=120) as cli:
-        r = await cli.post(f"{CFG.OLLAMA_HOST}/api/generate", json=payload)
-        r.raise_for_status()
-        return r.json().get("response", "").strip()
+        try:
+            r = await cli.post(f"{CFG.OLLAMA_HOST}/api/generate", json=payload)
+            r.raise_for_status()
+            return r.json().get("response", "").strip()
+        except httpx.HTTPStatusError as e:
+            logger.warning("[ollama] HTTP ошибка %d: %s", e.response.status_code, e)
+            raise
+        except Exception as e:
+            logger.error("[ollama] неожиданная ошибка: %s", e)
+            raise
