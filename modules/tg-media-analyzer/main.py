@@ -12,11 +12,19 @@ from shared.logging_setup import setup_logging
 from bot.handlers import handle_media, handle_callback, handle_url
 from bot.task_handler import handle_task_callback, handle_manual_task
 from bot.supervisor_bridge import setup_supervisor, handle_supervisor_callback
+from bot import anime_menu
 from db.storage import init_db
 
 # S-1/S-2: маскировка токена/ключей + httpx→WARNING + ротация 10MB×5.
 setup_logging(Path(__file__).parent / "logs" / "bot.log", console=False)
 logger = logging.getLogger(__name__)
+
+
+async def _route_text(update, context):
+    """Текст: сперва состояния аниме-меню (поиск/добавление), иначе — задачи."""
+    if await anime_menu.handle_text_state(update, context):
+        return
+    await handle_manual_task(update, context)
 
 
 def build_app() -> Application:
@@ -34,16 +42,28 @@ def build_app() -> Application:
     # URLs
     app.add_handler(MessageHandler(filters.TEXT & filters.Entity("url"), handle_url))
 
-    # Manual tasks in tasks topic
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_manual_task))
+    # Аниме: меню по слову «аниме», текст-состояния поиска — ПЕРЕД задачами
+    app.add_handler(MessageHandler(
+        filters.TEXT & filters.Regex(r"(?i)^аниме$"), anime_menu.open_menu))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _route_text))
 
     # Callbacks
     app.add_handler(CallbackQueryHandler(handle_callback,      pattern=r"^[sdx]:"))
     app.add_handler(CallbackQueryHandler(handle_task_callback, pattern=r"^(approve|cancel):"))
     app.add_handler(CallbackQueryHandler(handle_supervisor_callback, pattern=r"^sup_(ok|no):"))
+    app.add_handler(CallbackQueryHandler(anime_menu.handle_callback, pattern=r"^an:"))
 
     # Капитан: approve_callback на TG-кнопках + уведомления о результате
     setup_supervisor(app)
+
+    # AnimeAgent: уведомления о сериях в TG + регистрация в реестре
+    import core.registry as registry
+    from agents.anime import AnimeAgent
+
+    async def _anime_notify(text: str, url: str | None) -> None:
+        await anime_menu.notify_episode(app, text, url)
+
+    registry.register(AnimeAgent(notify_func=_anime_notify))
 
     return app
 
