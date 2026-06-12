@@ -1,0 +1,15 @@
+# Ringostat — маппинг сотрудников (SIP/телефон → Kommo → Telegram)
+employees:
+  - name: "Сергей"
+    sip: "sergey"
+    phone: "+380939151888"
+    kommo_user_id: 15032975
+    telegram_id: 374728252
+    is_owner: true
+  # добавить остальных менеджеров по образцу:
+  # - name: "Имя"
+  #   sip: "sip-логин в Ringostat"
+  #   phone: "+380XXXXXXXXX"
+  #   kommo_user_id: 0
+  #   telegram_id: 0
+  #   is_owner: false

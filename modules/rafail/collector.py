@@ -84,6 +84,14 @@ async def collect_all(domain: str = "", hours: int | None = 48) -> dict:
             logger.error("[collector] %s: %s", src["name"], e)
             n = 0
         summary[src["name"]] = n
+    # RF-6: Drive подключается только при наличии Service Account
+    if not opt("GOOGLE_SA_JSON"):
+        logger.info("[collector] GOOGLE_SA_JSON не задан — Drive пропущен")
+    else:
+        try:
+            summary["drive:course_ses"] = await collect_drive("course_ses")
+        except Exception as e:
+            logger.error("[collector] drive: %s", e)
     total = sum(summary.values())
     kb.log_sync("collect", "ok", f"domain={domain or 'all'} added={total}")
     logger.info("[collector] собрано %d новых материалов: %s", total, summary)

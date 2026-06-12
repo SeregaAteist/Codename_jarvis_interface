@@ -83,15 +83,17 @@ class MoodleConnector:
         )
         return res[0] if res else {}
 
-    async def create_course(self, title: str, category_id: int, description: str = "") -> dict:
+    async def create_course(self, title: str, category_id: int, description: str = "",
+                            shortname: str = "", summary_format: int = 1) -> dict:
+        """summary_format: 1=HTML, 4=Markdown (Moodle FORMAT_MARKDOWN)."""
         res = await self.call(
             "core_course_create_courses",
             courses=[{
                 "fullname": title,
-                "shortname": title[:80],
+                "shortname": (shortname or title)[:80],
                 "categoryid": category_id,
                 "summary": description,
-                "summaryformat": 1,
+                "summaryformat": summary_format,
             }],
         )
         return res[0] if res else {}
