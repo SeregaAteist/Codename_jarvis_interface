@@ -82,10 +82,35 @@ async def anime_check() -> None:
     logger.info("[scheduler] anime_check: %s", result)
 
 
+async def rafail_collect() -> None:
+    """Ежедневный сбор материалов Рафаила (RF-13)."""
+    from agents.rafail import RafailAgent
+    result = await RafailAgent().daily_collect()
+    logger.info("[scheduler] rafail_collect: %s", result)
+
+
+async def rafail_weekly_report() -> None:
+    """Еженедельный отчёт по обучению — владельцу в TG (RF-13)."""
+    from telegram import Bot
+
+    from agents.rafail import RafailAgent
+    from shared.config import CFG
+
+    try:
+        report = await RafailAgent().generate_progress_report()
+    except Exception as e:  # noqa: BLE001
+        report = f"⚠️ Отчёт по обучению не собран: {e}"
+    bot = Bot(CFG.TELEGRAM_TOKEN)
+    async with bot:
+        await bot.send_message(chat_id=CFG.OWNER_USER_ID, text=report[:4000])
+
+
 def register_default_jobs() -> None:
     """Стартовые задачи. Вызвать перед scheduler.start()."""
     scheduler.schedule("morning_briefing", "0 8 * * *", morning_briefing)  # 08:00 ежедневно
     scheduler.schedule("anime_check", "0 */3 * * *", anime_check)          # каждые 3 часа
+    scheduler.schedule("rafail_collect", "0 8 * * *", rafail_collect)      # 08:00 ежедневно
+    scheduler.schedule("rafail_report", "0 9 * * 1", rafail_weekly_report) # пн 09:00
 
 
 def main() -> None:

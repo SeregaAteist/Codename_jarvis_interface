@@ -12,7 +12,7 @@ from shared.logging_setup import setup_logging
 from bot.handlers import handle_media, handle_callback, handle_url
 from bot.task_handler import handle_task_callback, handle_manual_task
 from bot.supervisor_bridge import setup_supervisor, handle_supervisor_callback
-from bot import anime_menu
+from bot import anime_menu, rafail_menu
 from db.storage import init_db
 
 # S-1/S-2: маскировка токена/ключей + httpx→WARNING + ротация 10MB×5.
@@ -21,8 +21,10 @@ logger = logging.getLogger(__name__)
 
 
 async def _route_text(update, context):
-    """Текст: сперва состояния аниме-меню (поиск/добавление), иначе — задачи."""
+    """Текст: сперва состояния меню (аниме, рафаил), иначе — задачи."""
     if await anime_menu.handle_text_state(update, context):
+        return
+    if await rafail_menu.handle_text_state(update, context):
         return
     await handle_manual_task(update, context)
 
@@ -42,9 +44,11 @@ def build_app() -> Application:
     # URLs
     app.add_handler(MessageHandler(filters.TEXT & filters.Entity("url"), handle_url))
 
-    # Аниме: меню по слову «аниме», текст-состояния поиска — ПЕРЕД задачами
+    # Меню по ключевым словам («аниме», «рафаил»), текст-состояния — ПЕРЕД задачами
     app.add_handler(MessageHandler(
         filters.TEXT & filters.Regex(r"(?i)^аниме$"), anime_menu.open_menu))
+    app.add_handler(MessageHandler(
+        filters.TEXT & filters.Regex(r"(?i)^рафаил$"), rafail_menu.open_menu))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _route_text))
 
     # Callbacks
@@ -52,6 +56,8 @@ def build_app() -> Application:
     app.add_handler(CallbackQueryHandler(handle_task_callback, pattern=r"^(approve|cancel):"))
     app.add_handler(CallbackQueryHandler(handle_supervisor_callback, pattern=r"^sup_(ok|no):"))
     app.add_handler(CallbackQueryHandler(anime_menu.handle_callback, pattern=r"^an:"))
+    app.add_handler(CallbackQueryHandler(rafail_menu.handle_callback, pattern=r"^rf:"))
+    app.add_handler(CallbackQueryHandler(rafail_menu.handle_approval_callback, pattern=r"^rfap:"))
 
     # Капитан: approve_callback на TG-кнопках + уведомления о результате
     setup_supervisor(app)
@@ -64,6 +70,9 @@ def build_app() -> Application:
         await anime_menu.notify_episode(app, text, url)
 
     registry.register(AnimeAgent(notify_func=_anime_notify))
+
+    # Рафаил: агент + TG-approver + меню
+    rafail_menu.setup_rafail(app)
 
     return app
 
