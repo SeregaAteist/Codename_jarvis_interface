@@ -49,7 +49,7 @@ class RingostatConnector:
                 continue
             out.append({
                 "id": c.get("id") or c.get("call_id"),
-                "title": f"Дзвінок {c.get('caller', '')} → {c.get('called', '')}",
+                "title": f"Звонок {c.get('caller', '')} → {c.get('called', '')}",
                 "transcript": transcript,
             })
         return out

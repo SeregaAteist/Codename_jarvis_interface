@@ -93,6 +93,51 @@ async def make_quiz(module_content: str, title: str, track: str = "all", count: 
     return kb.add_processed(None, "quiz", track, f"Тест: {title}", content)
 
 
+# ── Moodle XML (RF-10) ────────────────────────────────────────────────────────
+
+def questions_to_moodle_xml(questions: list[dict], category: str = "") -> str:
+    """JSON-вопросы (make_quiz) → Moodle XML для импорта в банк вопросов.
+
+    category — путь категории банка ('$course$/Рафаил/М1'): вопросы лягут
+    в свою категорию, и mod_quiz_add_random_questions сможет брать из неё.
+    """
+    from xml.sax.saxutils import escape
+
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>', "<quiz>"]
+
+    if category:
+        parts.append(
+            '<question type="category"><category>'
+            f"<text>{escape(category)}</text>"
+            "</category></question>"
+        )
+
+    for i, q in enumerate(questions, 1):
+        parts.append('<question type="multichoice">')
+        parts.append(f"<name><text>{escape(q['question'][:60])} [{i}]</text></name>")
+        parts.append(
+            '<questiontext format="html">'
+            f"<text><![CDATA[<p>{q['question']}</p>]]></text>"
+            "</questiontext>"
+        )
+        for a in q["answers"]:
+            fraction = "100" if a.get("correct") else "0"
+            parts.append(f'<answer fraction="{fraction}" format="html">')
+            parts.append(f"<text><![CDATA[{a['text']}]]></text>")
+            if a.get("feedback"):
+                parts.append(
+                    f'<feedback format="html"><text><![CDATA[{a["feedback"]}]]></text></feedback>'
+                )
+            parts.append("</answer>")
+        parts.append("<single>true</single>")
+        parts.append("<shuffleanswers>true</shuffleanswers>")
+        parts.append("<defaultgrade>1</defaultgrade>")
+        parts.append("</question>")
+
+    parts.append("</quiz>")
+    return "\n".join(parts)
+
+
 # ── утилиты ───────────────────────────────────────────────────────────────────
 
 def parse_quiz_json(raw: str) -> list[dict]:

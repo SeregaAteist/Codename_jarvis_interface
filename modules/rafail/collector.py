@@ -148,7 +148,7 @@ async def collect_crm(limit: int = 20) -> int:
         if kb.material_exists(url):
             continue
         kb.add_material(
-            domain="sales", track="sales", title=d.get("name", f"Угода {d['id']}"),
+            domain="sales", track="sales", title=d.get("name", f"Сделка {d['id']}"),
             raw_content=str(d), source_url=url, source_type="crm",
         )
         added += 1
@@ -170,7 +170,7 @@ async def collect_ringostat(limit: int = 20) -> int:
             continue
         kb.add_material(
             domain="sales", track="sales",
-            title=call.get("title", f"Дзвінок {call['id']}"),
+            title=call.get("title", f"Звонок {call['id']}"),
             raw_content=call.get("transcript", ""),
             source_url=url, source_type="ringostat",
         )

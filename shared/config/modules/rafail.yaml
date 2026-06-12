@@ -19,3 +19,8 @@ rafail:
   approval_timeout_hours: 24
   collect_hours: 48                # свежесть RSS при ежедневном сборе
   quiz_questions: 7                # 5-10 по ТЗ
+  # Квизы создаются вручную один раз на модуль; ID сюда (RF-10).
+  # category_id — категория банка вопросов модуля (Question bank → категория).
+  quizzes: {}
+  #   М1: {quiz_id: 0, category_id: 0}
+  #   М2: {quiz_id: 0, category_id: 0}

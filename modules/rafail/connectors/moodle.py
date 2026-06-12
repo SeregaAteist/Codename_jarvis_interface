@@ -118,6 +118,56 @@ class MoodleConnector:
     async def get_grades(self, course_id: int) -> Any:
         return await self.call("gradereport_user_get_grade_items", courseid=course_id)
 
+    # ── квизы (RF-10) ─────────────────────────────────────────────────────────
+
+    async def get_quizzes(self, course_id: int) -> list:
+        """Квизы курса: [{id, coursemodule, name, ...}]."""
+        res = await self.call("mod_quiz_get_quizzes_by_courses", courseids=[course_id])
+        return res.get("quizzes", []) if isinstance(res, dict) else res
+
+    async def upload_quiz_xml(self, xml_content: str, filename: str = "quiz.xml") -> int:
+        """Загрузить Moodle XML в draft-зону пользователя. Возвращает draft itemid.
+
+        Дальше itemid используется при импорте вопросов в банк
+        (qformat_xml через форму импорта либо плагин на стороне Moodle).
+        """
+        import base64
+
+        res = await self.call(
+            "core_files_upload",
+            contextlevel="user",
+            instanceid=await self._own_userid(),
+            component="user",
+            filearea="draft",
+            itemid=0,
+            filepath="/",
+            filename=filename,
+            filecontent=base64.b64encode(xml_content.encode("utf-8")).decode(),
+        )
+        return int(res.get("itemid", 0)) if isinstance(res, dict) else 0
+
+    async def add_random_questions(self, quiz_id: int, category_id: int,
+                                   count: int = 1, include_subcategories: bool = False) -> Any:
+        """Добавить в квиз N случайных вопросов из категории банка вопросов."""
+        return await self.call(
+            "mod_quiz_add_random_questions",
+            quizid=quiz_id,
+            addonpage=0,
+            randomcount=count,
+            categoryid=category_id,
+            includesubcategories=1 if include_subcategories else 0,
+        )
+
+    async def update_slots(self, quiz_id: int, slots: list[dict]) -> Any:
+        """Обновить слоты квиза (порядок/страницы/баллы)."""
+        return await self.call("mod_quiz_update_slots", quizid=quiz_id, slots=slots)
+
+    async def _own_userid(self) -> int:
+        if not hasattr(self, "_userid"):
+            info = await self.call("core_webservice_get_site_info")
+            self._userid = int(info["userid"])
+        return self._userid
+
     async def get_course_completion(self, course_id: int, user_id: int) -> Any:
         return await self.call(
             "core_completion_get_course_completion_status",
