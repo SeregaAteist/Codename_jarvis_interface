@@ -1,28 +1,35 @@
-import httpx
-import json
+"""Рекомендации через общий LLM-роутер JARVIS (роль 'recommend' → Gemini).
+
+Прямых HTTP-вызовов LLM здесь нет: провайдер/модель/retry/ключи — забота
+shared/llm/router. Fallback и ротация ключей — внутри роутера.
+"""
+import logging
+import os
+import sys
+
 from agents.db_agent import get_watchlist, get_all_snapshot
-from config import cfg
+
+logger = logging.getLogger("recommend")
+
+JARVIS_ROOT = os.path.expanduser("~/Projects/jarvis")
+if JARVIS_ROOT not in sys.path:
+    sys.path.insert(0, JARVIS_ROOT)
 
 
-async def get_recommendations() -> str:
-    watchlist = get_watchlist()
-    catalog = get_all_snapshot()
+async def _llm_generate(prompt: str) -> str:
+    """Тонкая обёртка над router.generate — единственная точка мока в тестах."""
+    from shared.llm import router
+    return await router.generate("recommend", prompt)
 
-    if not watchlist:
-        return (
-            "Сэр, ваш список просмотров пуст. "
-            "Добавьте несколько тайтлов через кнопку «Добавить», "
-            "и я подберу достойные рекомендации."
-        )
 
+def build_prompt(watchlist: list[dict], catalog: list[dict]) -> str:
     watching_titles = [w["title"] for w in watchlist]
     catalog_titles = [
         f"{a['title']} (жанры: {a.get('genres','?')}, "
         f"рейтинг MAL: {a.get('mal_score','?')})"
         for a in catalog[:80]
     ]
-
-    prompt = f"""Ты — аниме-эксперт. Пользователь смотрит:
+    return f"""Ты — аниме-эксперт. Пользователь смотрит:
 {chr(10).join(f'- {t}' for t in watching_titles)}
 
 Из каталога доступны:
@@ -32,34 +39,23 @@ async def get_recommendations() -> str:
 Для каждого напиши: название, почему подойдёт (1-2 предложения).
 Отвечай на русском языке, кратко и по делу."""
 
-    try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                f"{cfg.OLLAMA_URL}/api/generate",
-                json={
-                    "model": cfg.OLLAMA_MODEL,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.7, "num_predict": 600}
-                }
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("response", "Ollama не вернула ответ.")
-    except httpx.ConnectError:
+
+async def get_recommendations() -> str:
+    watchlist = get_watchlist(status="watching")
+    catalog = get_all_snapshot()
+
+    if not watchlist:
         return (
-            "Сэр, Ollama недоступна. "
-            "Убедитесь что запущен: `ollama serve` "
-            "и установлена модель: `ollama pull llama3.2`"
+            "Сэр, ваш список просмотров пуст. "
+            "Добавьте несколько тайтлов через кнопку «Добавить», "
+            "и я подберу достойные рекомендации."
         )
-    except Exception as e:
-        return f"Ошибка рекомендательного агента: {e}"
 
-
-async def check_ollama() -> bool:
     try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            resp = await client.get(f"{cfg.OLLAMA_URL}/api/tags")
-            return resp.status_code == 200
-    except Exception:
-        return False
+        return await _llm_generate(build_prompt(watchlist, catalog))
+    except Exception as e:
+        logger.error("LLM-роутер недоступен: %s", e)
+        return (
+            "Сэр, рекомендательный модуль временно недоступен "
+            f"({type(e).__name__}). Попробуйте позже."
+        )

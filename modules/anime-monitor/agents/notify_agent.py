@@ -1,16 +1,21 @@
+import logging
+
 import httpx
-from agents.db_agent import (
-    get_watchlist, get_unnotified_episodes, mark_notified
-)
+
+from agents.db_agent import get_watchlist
 from config import cfg
 
+logger = logging.getLogger("notify")
 
 TG_API = f"https://api.telegram.org/bot{cfg.TELEGRAM_TOKEN}"
+
+# Статусы, по которым шлём уведомления о новых сериях (A-9)
+NOTIFY_STATUSES = ("watching", "planned")
 
 
 async def send_message(text: str, parse_mode: str = "HTML") -> bool:
     if not cfg.TELEGRAM_TOKEN or not cfg.TELEGRAM_CHAT_ID:
-        print(f"[Telegram] {text}")
+        logger.info("(no token) %s", text)
         return False
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -26,46 +31,43 @@ async def send_message(text: str, parse_mode: str = "HTML") -> bool:
             )
             return resp.status_code == 200
     except Exception as e:
-        print(f"[Telegram] Ошибка отправки: {e}")
+        logger.error("Ошибка отправки: %s", e)
         return False
+
+
+def filter_by_watchlist(new_items: list[dict]) -> tuple[list[dict], bool]:
+    """A-9: при непустом вотчлисте — только релевантные тайтлы.
+
+    Пустой вотчлист → слать всё (прежнее поведение).
+    Возвращает (items, фильтровалось_ли_по_вотчлисту).
+    """
+    watchlist = [w for w in get_watchlist() if w["status"] in NOTIFY_STATUSES]
+    if not watchlist:
+        return new_items, False
+    watching_titles = {w["title"].lower() for w in watchlist}
+    return [i for i in new_items if i["title"].lower() in watching_titles], True
 
 
 async def notify_new_episodes(new_items: list[dict]) -> None:
     if not new_items:
         return
 
-    watchlist = get_watchlist()
-    watching_titles = {w["title"].lower() for w in watchlist}
+    filtered, from_watchlist = filter_by_watchlist(new_items)
+    if not filtered:
+        logger.info("Новинок по вотчлисту нет (%d отфильтровано).", len(new_items))
+        return
 
-    priority = []
-    other = []
-    for item in new_items:
-        if item["title"].lower() in watching_titles:
-            priority.append(item)
-        else:
-            other.append(item)
-
-    if priority:
-        lines = ["🔔 <b>Новые серии — ваш вотчлист:</b>\n"]
-        for item in priority:
-            ep = f" [{item['episode']}]" if item.get("episode") else ""
-            lines.append(
-                f"⭐ <a href='{item['url']}'>{item['title']}</a>{ep}"
-            )
-        await send_message("\n".join(lines))
-
-    if other:
-        lines = [f"\n📺 <b>Новинки на сайте ({len(other)}):</b>\n"]
-        for item in other[:10]:
-            ep = f" [{item['episode']}]" if item.get("episode") else ""
-            score = (
-                f" · MAL {item['mal_score']}"
-                if item.get("mal_score") else ""
-            )
-            lines.append(
-                f"• <a href='{item['url']}'>{item['title']}</a>{ep}{score}"
-            )
-        await send_message("\n".join(lines))
+    header = (
+        "🔔 <b>Новые серии — ваш вотчлист:</b>\n"
+        if from_watchlist else
+        f"📺 <b>Новинки на сайте ({len(filtered)}):</b>\n"
+    )
+    lines = [header]
+    for item in filtered[:15]:
+        ep = f" [{item['episode']}]" if item.get("episode") else ""
+        score = f" · MAL {item['mal_score']}" if item.get("mal_score") else ""
+        lines.append(f"⭐ <a href='{item['url']}'>{item['title']}</a>{ep}{score}")
+    await send_message("\n".join(lines))
 
 
 async def notify_scan_complete(total: int, new_count: int) -> None:

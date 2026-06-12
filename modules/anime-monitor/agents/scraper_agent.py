@@ -1,8 +1,11 @@
 import asyncio
+import logging
 import re
 import httpx
 from bs4 import BeautifulSoup
 from config import cfg
+
+logger = logging.getLogger("scraper")
 
 
 HEADERS = {
@@ -18,7 +21,7 @@ async def fetch_page(client: httpx.AsyncClient, page: int) -> list[dict]:
         resp = await client.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
     except Exception as e:
-        print(f"[Парсер] Ошибка страницы {page}: {e}")
+        logger.warning(f"Ошибка страницы {page}: {e}")
         return []
 
     soup = BeautifulSoup(resp.text, "lxml")
@@ -60,10 +63,10 @@ async def fetch_page(client: httpx.AsyncClient, page: int) -> list[dict]:
                 "genres": genres,
             })
         except Exception as e:
-            print(f"[Парсер] Ошибка карточки: {e}")
+            logger.warning(f"Ошибка карточки: {e}")
             continue
 
-    print(f"[Парсер] Страница {page}: найдено {len(items)} тайтлов")
+    logger.info(f"Страница {page}: найдено {len(items)} тайтлов")
     return items
 
 
@@ -80,7 +83,7 @@ async def fetch_category_page(
         resp = await client.get(url, headers=HEADERS, timeout=20)
         resp.raise_for_status()
     except Exception as e:
-        print(f"[Парсер] Ошибка страницы {page}: {e}")
+        logger.warning(f"Ошибка страницы {page}: {e}")
         return [], False
 
     soup = BeautifulSoup(resp.text, "lxml")
@@ -133,11 +136,11 @@ async def fetch_category_page(
                     "year":    str(year) if year else "",
                 })
         except Exception as e:
-            print(f"[Парсер] Ошибка карточки: {e}")
+            logger.warning(f"Ошибка карточки: {e}")
             continue
 
     all_below = bool(page_years) and all(y < year_min for y in page_years)
-    print(f"[Парсер] Страница {page}: найдено {len(items)} в диапазоне "
+    logger.info(f"Страница {page}: найдено {len(items)} в диапазоне "
           f"(годы на странице: {sorted(set(page_years), reverse=True)})")
     return items, all_below
 
@@ -162,7 +165,7 @@ async def scrape_category(
             if all_below:
                 below_count += 1
                 if below_count >= 3:
-                    print(f"[Парсер] 3 страницы подряд ниже {year_min} — останавливаемся.")
+                    logger.info(f"3 страницы подряд ниже {year_min} — останавливаемся.")
                     break
             else:
                 below_count = 0
@@ -177,7 +180,7 @@ async def scrape_category(
             seen_urls.add(item["url"])
             unique.append(item)
 
-    print(f"[Парсер] Итого уникальных ({year_min}–{year_max}): {len(unique)}")
+    logger.info(f"Итого уникальных ({year_min}–{year_max}): {len(unique)}")
     return unique
 
 
@@ -197,5 +200,5 @@ async def scrape_all_pages() -> list[dict]:
             seen_urls.add(item["url"])
             unique.append(item)
 
-    print(f"[Парсер] Итого уникальных: {len(unique)}")
+    logger.info(f"Итого уникальных: {len(unique)}")
     return unique

@@ -1,8 +1,15 @@
+import logging
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional
+
 from config import cfg
+
+logger = logging.getLogger("db")
+
+WATCHLIST_STATUSES = ("watching", "completed", "dropped", "planned")
 
 
 @contextmanager
@@ -17,6 +24,7 @@ def conn():
 
 
 def init_db() -> None:
+    os.makedirs(os.path.dirname(cfg.DB_PATH), exist_ok=True)
     with conn() as c:
         c.executescript("""
         CREATE TABLE IF NOT EXISTS anime_snapshot (
@@ -52,7 +60,16 @@ def init_db() -> None:
             notified    INTEGER DEFAULT 0
         );
         """)
-    print("[БД] Инициализация завершена.")
+        _migrate(c)
+    logger.info("Инициализация завершена.")
+
+
+def _migrate(c: sqlite3.Connection) -> None:
+    """Миграция старых БД: watchlist.status мог отсутствовать (A-8)."""
+    cols = {r["name"] for r in c.execute("PRAGMA table_info(watchlist)")}
+    if "status" not in cols:
+        c.execute("ALTER TABLE watchlist ADD COLUMN status TEXT DEFAULT 'watching'")
+        logger.info("Миграция: добавлена колонка watchlist.status")
 
 
 def upsert_anime(items: list[dict]) -> list[dict]:
@@ -103,11 +120,18 @@ def log_episodes(items: list[dict]) -> None:
             """, (item["url"], item["title"], item.get("episode"), now))
 
 
-def get_watchlist() -> list[dict]:
+def get_watchlist(status: Optional[str] = None) -> list[dict]:
+    """status=None → весь вотчлист; иначе фильтр по статусу (A-8)."""
     with conn() as c:
-        rows = c.execute(
-            "SELECT * FROM watchlist WHERE status='watching' ORDER BY added_at DESC"
-        ).fetchall()
+        if status:
+            rows = c.execute(
+                "SELECT * FROM watchlist WHERE status=? ORDER BY added_at DESC",
+                (status,)
+            ).fetchall()
+        else:
+            rows = c.execute(
+                "SELECT * FROM watchlist ORDER BY added_at DESC"
+            ).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -115,9 +139,14 @@ def add_to_watchlist(title: str, url: str = "") -> bool:
     now = datetime.now().isoformat(timespec="seconds")
     with conn() as c:
         existing = c.execute(
-            "SELECT id FROM watchlist WHERE title=? AND status='watching'", (title,)
+            "SELECT id FROM watchlist WHERE title=?", (title,)
         ).fetchone()
         if existing:
+            # повторное добавление = вернуть в просмотр
+            c.execute(
+                "UPDATE watchlist SET status='watching' WHERE id=?",
+                (existing["id"],)
+            )
             return False
         c.execute("""
             INSERT INTO watchlist (title, url, status, added_at)
@@ -127,10 +156,24 @@ def add_to_watchlist(title: str, url: str = "") -> bool:
 
 
 def update_watchlist_status(title: str, status: str) -> bool:
+    if status not in WATCHLIST_STATUSES:
+        return False
     with conn() as c:
         cur = c.execute(
-            "UPDATE watchlist SET status=? WHERE title=? AND status='watching'",
+            "UPDATE watchlist SET status=? WHERE title=?",
             (status, title)
+        )
+        return cur.rowcount > 0
+
+
+def update_status_by_id(watchlist_id: int, status: str) -> bool:
+    """Смена статуса по id записи — callback status:{id}:{status} (A-8)."""
+    if status not in WATCHLIST_STATUSES:
+        return False
+    with conn() as c:
+        cur = c.execute(
+            "UPDATE watchlist SET status=? WHERE id=?",
+            (status, watchlist_id)
         )
         return cur.rowcount > 0
 
@@ -152,6 +195,13 @@ def get_all_snapshot() -> list[dict]:
             ORDER BY last_seen DESC
         """).fetchall()
         return [dict(r) for r in rows]
+
+
+def get_last_scan() -> Optional[str]:
+    """Время последнего сканирования = MAX(last_seen) по каталогу (A-11)."""
+    with conn() as c:
+        row = c.execute("SELECT MAX(last_seen) AS ts FROM anime_snapshot").fetchone()
+        return row["ts"] if row and row["ts"] else None
 
 
 def get_unnotified_episodes() -> list[dict]:

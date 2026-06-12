@@ -13,7 +13,8 @@ from fastapi.staticfiles import StaticFiles
 
 from agents.db_agent import (
     get_watchlist, get_all_snapshot,
-    get_recent_episodes, add_to_watchlist, update_watchlist_status
+    get_recent_episodes, add_to_watchlist, update_watchlist_status,
+    get_last_scan
 )
 from agents.recommend_agent import get_recommendations
 
@@ -82,6 +83,25 @@ async def health():
     return {"status": "online", "agent": "J.A.R.V.I.S."}
 
 
+@app.get("/anime/status")
+async def anime_status(request: Request):
+    """Виджет JARVIS HUD (A-11). Только агрегаты — без токена (bind 127.0.0.1)."""
+    client_ip = request.client.host if request.client else "unknown"
+    if not _rate_ok(client_ip, request.url.path):
+        raise HTTPException(status_code=429, detail="rate limit exceeded")
+    watchlist = get_watchlist()
+    snapshot = get_all_snapshot()
+    return {
+        "watchlist_count": len(watchlist),
+        "catalog_count": len(snapshot),
+        "watching": [
+            {"title": w["title"], "url": w.get("url", "")}
+            for w in watchlist if w.get("status") == "watching"
+        ],
+        "last_scan": get_last_scan(),
+    }
+
+
 @app.get("/api/watchlist")
 async def api_watchlist(request: Request):
     _check_request(request)
@@ -124,8 +144,10 @@ async def api_recommend(request: Request):
     return {"text": result}
 
 
+from config import MODULE_DIR  # noqa: E402
+
 app.mount(
     "/",
-    StaticFiles(directory="bot/mini_app", html=True),
+    StaticFiles(directory=os.path.join(MODULE_DIR, "bot", "mini_app"), html=True),
     name="mini_app"
 )

@@ -1,4 +1,6 @@
 import asyncio
+import logging
+
 from telegram import (
     Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 )
@@ -8,10 +10,12 @@ from telegram.ext import (
 )
 from agents.db_agent import (
     get_watchlist, get_recent_episodes, add_to_watchlist,
-    update_watchlist_status, get_all_snapshot
+    update_status_by_id, get_all_snapshot, WATCHLIST_STATUSES
 )
-from agents.recommend_agent import get_recommendations, check_ollama
+from agents.recommend_agent import get_recommendations
 from config import cfg
+
+logger = logging.getLogger("bot")
 
 WAITING_ADD_QUERY = 1
 
@@ -27,15 +31,38 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
 MENU_BUTTONS = {"🔍 Скан", "🆕 Результаты", "🤖 Рекомендации",
                 "📋 Вотчлист", "➕ Добавить", "➖ Убрать"}
 
+STATUS_LABELS = {
+    "watching":  "▶️ Смотрю",
+    "completed": "✅ Просмотрено",
+    "dropped":   "❌ Дропнул",
+    "planned":   "📅 Запланировано",
+}
 
-def anime_inline_keyboard(title: str, url: str) -> InlineKeyboardMarkup:
-    safe_title = title.encode("utf-8")[:30].decode("utf-8", errors="ignore")
-    safe_url   = url[:200] if url and url.startswith("http") else cfg.BASE_URL
+
+def status_filter_keyboard() -> InlineKeyboardMarkup:
+    """Фильтр вотчлиста по статусу (A-8)."""
+    row1 = [
+        InlineKeyboardButton(STATUS_LABELS["watching"],  callback_data="wlfilter:watching"),
+        InlineKeyboardButton(STATUS_LABELS["completed"], callback_data="wlfilter:completed"),
+    ]
+    row2 = [
+        InlineKeyboardButton(STATUS_LABELS["dropped"],   callback_data="wlfilter:dropped"),
+        InlineKeyboardButton(STATUS_LABELS["planned"],   callback_data="wlfilter:planned"),
+    ]
+    return InlineKeyboardMarkup([row1, row2])
+
+
+def status_change_keyboard(item_id: int, current: str, url: str) -> InlineKeyboardMarkup:
+    """Кнопки смены статуса под тайтлом: все статусы кроме текущего (A-8)."""
+    safe_url = url if url and url.startswith("http") else cfg.BASE_URL
+    buttons = [
+        InlineKeyboardButton(label, callback_data=f"status:{item_id}:{status}")
+        for status, label in STATUS_LABELS.items()
+        if status != current
+    ]
     return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("✅ Досмотрел", callback_data=f"done|{safe_title}"),
-            InlineKeyboardButton("❌ Дропнул",   callback_data=f"drop|{safe_title}"),
-        ],
+        buttons[:2],
+        buttons[2:],
         [InlineKeyboardButton("🔗 Смотреть на сайте", url=safe_url)],
     ])
 
@@ -63,28 +90,28 @@ def is_allowed(update) -> bool:
         return True
     chat_id  = str(update.message.chat_id)
     thread   = update.message.message_thread_id
-    priv     = update.message.chat.type == "private"
+    user_id  = update.message.from_user.id if update.message.from_user else 0
+    priv     = (update.message.chat.type == "private"
+                and (not cfg.OWNER_USER_ID or user_id == cfg.OWNER_USER_ID))
     group_ok = (chat_id == cfg.GROUP_CHAT_ID and thread == cfg.THREAD_ID)
     return priv or group_ok
+
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "⚡ <b>J.A.R.V.I.S. Anime Monitor</b> онлайн, сэр.\n\n"
-        "Автосканирование: 04:05 ежедневно\n"
+        f"Автосканирование: {', '.join(f'{h}:05' for h in cfg.SCAN_HOURS)}\n"
         "Управление — кнопками ниже.",
         parse_mode="HTML",
         reply_markup=MAIN_KEYBOARD,
     )
 
 
-async def handle_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not is_allowed(update): return
-    watchlist = get_watchlist()
-    if not watchlist:
-        await update.message.reply_text(
-            "📋 Вотчлист пуст.\nНажмите «➕ Добавить» чтобы добавить аниме.",
-            reply_markup=MAIN_KEYBOARD,
-        )
+async def _send_watchlist_items(send, status: str):
+    """Вывести тайтлы вотчлиста выбранного статуса с кнопками смены."""
+    items = get_watchlist(status=status)
+    if not items:
+        await send(f"Раздел «{STATUS_LABELS[status]}» пуст.")
         return
 
     snapshot_list = get_all_snapshot()
@@ -94,13 +121,7 @@ async def handle_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if a.get("url"):
             snapshot[a["url"]] = a
 
-    await update.message.reply_text(
-        f"📋 <b>Вотчлист ({len(watchlist)}):</b>",
-        parse_mode="HTML",
-        reply_markup=MAIN_KEYBOARD,
-    )
-
-    for item in watchlist:
+    for item in items:
         meta = (
             snapshot.get(item["url"]) or
             snapshot.get(item["title"].lower()) or
@@ -110,22 +131,48 @@ async def handle_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         score = f"  ·  MAL {meta['mal_score']}" if meta.get("mal_score") else ""
         url   = meta.get("url") or item.get("url") or cfg.BASE_URL
 
-        caption = f"<b>{item['title']}</b>"
+        caption = f"<b>{item['title']}</b>\n{STATUS_LABELS[item['status']]}"
         if ep:
             caption += f"\nПоследняя серия: {ep}"
         if score:
             caption += score
 
-        await update.message.reply_text(
+        await send(
             caption,
             parse_mode="HTML",
-            reply_markup=anime_inline_keyboard(item["title"], url),
+            reply_markup=status_change_keyboard(item["id"], item["status"], url),
         )
         await asyncio.sleep(0.3)
 
 
+async def handle_watchlist(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update):
+        return
+    watchlist = get_watchlist()
+    if not watchlist:
+        await update.message.reply_text(
+            "📋 Вотчлист пуст.\nНажмите «➕ Добавить» чтобы добавить аниме.",
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
+
+    counts = {s: 0 for s in WATCHLIST_STATUSES}
+    for w in watchlist:
+        counts[w.get("status", "watching")] = counts.get(w.get("status", "watching"), 0) + 1
+    summary = "  ·  ".join(
+        f"{STATUS_LABELS[s]}: {n}" for s, n in counts.items() if n
+    )
+
+    await update.message.reply_text(
+        f"📋 <b>Вотчлист ({len(watchlist)})</b>\n{summary}\n\nВыберите раздел:",
+        parse_mode="HTML",
+        reply_markup=status_filter_keyboard(),
+    )
+
+
 async def handle_new(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not is_allowed(update): return
+    if not is_allowed(update):
+        return
     episodes = get_recent_episodes(limit=15)
     if not episodes:
         await update.message.reply_text(
@@ -151,21 +198,12 @@ async def handle_new(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_recommend(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not is_allowed(update): return
-    watchlist = get_watchlist()
+    if not is_allowed(update):
+        return
+    watchlist = get_watchlist(status="watching")
     if not watchlist:
         await update.message.reply_text(
             "📋 Вотчлист пуст — добавьте аниме чтобы получить рекомендации.",
-            reply_markup=MAIN_KEYBOARD,
-        )
-        return
-
-    if not await check_ollama():
-        await update.message.reply_text(
-            "⚠️ Ollama не запущена.\n"
-            "Откройте новый терминал и выполните:\n"
-            "<code>ollama serve</code>",
-            parse_mode="HTML",
             reply_markup=MAIN_KEYBOARD,
         )
         return
@@ -179,7 +217,8 @@ async def handle_recommend(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_scan(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not is_allowed(update): return
+    if not is_allowed(update):
+        return
     from main import run_scan
     await update.message.reply_text("🔍 Запускаю сканирование...", reply_markup=MAIN_KEYBOARD)
     new_count = await run_scan()
@@ -225,7 +264,7 @@ async def handle_add_query(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> in
     for i, r in enumerate(results):
         score_str = f" · MAL {r['mal_score']}" if r.get("mal_score") else ""
         label = f"{r['title'][:50]}{score_str}"
-        buttons.append([InlineKeyboardButton(label, callback_data=f"addconfirm|{i}")])
+        buttons.append([InlineKeyboardButton(label, callback_data=f"addconfirm:{i}")])
     buttons.append([InlineKeyboardButton("❌ Отмена", callback_data="addcancel")])
 
     await update.message.reply_text(
@@ -237,15 +276,14 @@ async def handle_add_query(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def handle_drop_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    watchlist = get_watchlist()
+    watchlist = get_watchlist(status="watching")
     if not watchlist:
         await update.message.reply_text("Вотчлист пуст.", reply_markup=MAIN_KEYBOARD)
         return ConversationHandler.END
 
-    ctx.user_data["drop_watchlist"] = watchlist
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"❌ {w['title'][:55]}", callback_data=f"drop|{i}")]
-        for i, w in enumerate(watchlist)
+        [InlineKeyboardButton(f"❌ {w['title'][:55]}", callback_data=f"status:{w['id']}:dropped")]
+        for w in watchlist
     ])
     await update.message.reply_text("➖ Выберите что убрать из вотчлиста:", reply_markup=keyboard)
     return ConversationHandler.END
@@ -254,7 +292,7 @@ async def handle_drop_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> i
 async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    parts  = query.data.split("|")
+    parts  = query.data.split(":")
     action = parts[0]
 
     if action == "addconfirm" and len(parts) >= 2:
@@ -270,31 +308,34 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         text  = (
             f"✅ <b>{title}</b> добавлен в отслеживаемое.\nУведомлю когда выйдет новая серия, сэр. 🔔"
             if added else
-            f"⚠️ <b>{title}</b> уже в вотчлисте."
+            f"⚠️ <b>{title}</b> уже в вотчлисте — вернул в «Смотрю»."
         )
         await query.edit_message_text(text, parse_mode="HTML")
 
     elif action == "addcancel":
         await query.edit_message_text("Отменено.")
 
-    elif action == "done" and len(parts) >= 2:
-        update_watchlist_status(parts[1], "completed")
+    elif action == "wlfilter" and len(parts) >= 2 and parts[1] in WATCHLIST_STATUSES:
+        status = parts[1]
         await query.edit_message_text(
-            f"✅ <b>{parts[1]}</b> отмечен как досмотренный.", parse_mode="HTML"
+            f"📋 Раздел: <b>{STATUS_LABELS[status]}</b>", parse_mode="HTML"
         )
+        await _send_watchlist_items(query.message.reply_text, status)
 
-    elif action == "drop" and len(parts) >= 2:
-        watchlist = ctx.user_data.get("drop_watchlist", [])
+    elif action == "status" and len(parts) >= 3 and parts[2] in WATCHLIST_STATUSES:
         try:
-            item = watchlist[int(parts[1])]
-            title = item["title"]
-        except (IndexError, ValueError):
-            await query.edit_message_text("⚠️ Сессия устарела, повторите.")
+            item_id = int(parts[1])
+        except ValueError:
+            await query.edit_message_text("⚠️ Некорректный запрос.")
             return
-        update_watchlist_status(title, "dropped")
-        await query.edit_message_text(
-            f"❌ <b>{title}</b> удалён из вотчлиста.", parse_mode="HTML"
-        )
+        new_status = parts[2]
+        if update_status_by_id(item_id, new_status):
+            await query.edit_message_text(
+                f"Статус обновлён: <b>{STATUS_LABELS[new_status]}</b>",
+                parse_mode="HTML",
+            )
+        else:
+            await query.edit_message_text("⚠️ Запись не найдена — обновите вотчлист.")
 
 
 async def handle_unknown(update: Update, ctx: ContextTypes.DEFAULT_TYPE):

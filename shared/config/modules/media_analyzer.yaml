@@ -15,7 +15,7 @@ llm:
     quick_analysis: gemini/gemini-2.5-flash
     architect: claude/claude-fable-5
     local_chat: ollama/llama3.2
-    recommend: groq/llama-3.3-70b-versatile
+    recommend: gemini/gemini-2.5-flash   # anime-monitor: рекомендации (A-7)
 
 media:
   batch_timeout: 8
