@@ -24,6 +24,8 @@ from telegram.ext import (
 )
 
 from modules.rafail import knowledge_base as kb
+from modules.rafail.core.profile_manager import get_profile_manager
+from modules.rafail.registry.equipment_registry import EquipmentRegistry
 from shared.config.secrets import opt
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,84 @@ INBOX_TOPIC_ID = int(os.getenv("INBOX_TOPIC_ID") or 2)
 PREVIEW_LEN = 500
 
 _LEARN_KEYWORDS = {"навчання", "курс", "матеріал", "знання", "урок", "обучение", "тема"}
+
+RAFAIL_COMMANDS_PROMPT = """Ты обрабатываешь команды для системы Рафаил.
+
+Определи тип команды и верни ACTION:
+- Смена профиля: ACTION:SWITCH_PROFILE:{profile_id}
+- Создать профиль: ACTION:CREATE_PROFILE:{name}|{direction}
+- Реестр: ACTION:LIST_EQUIPMENT
+- Добавить оборудование: ACTION:ADD_EQUIPMENT:{brand}|{model}
+- Обычный вопрос: ACTION:QUESTION
+
+Команда: {text}
+"""
+
+
+async def _handle_profile_command(
+    text: str, update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> bool:
+    """Диспетчер профильных команд. Возвращает True если команда обработана."""
+    from shared.llm.router import get_router
+
+    router = get_router()
+    prompt = RAFAIL_COMMANDS_PROMPT.format(text=text)
+    try:
+        raw = await router.generate("speed", prompt)
+    except Exception as e:
+        logger.error("[rafail-bot] profile_command LLM: %s", e)
+        return False
+
+    # ищем ACTION: в ответе
+    action_line = ""
+    for line in raw.splitlines():
+        if "ACTION:" in line:
+            action_line = line.strip()
+            break
+    if not action_line:
+        return False
+
+    # убираем всё до первого ACTION:
+    action_str = action_line[action_line.index("ACTION:") + 7 :]
+    parts = action_str.split(":", 1)
+    action = parts[0]
+    arg = parts[1] if len(parts) > 1 else ""
+
+    pm = get_profile_manager()
+
+    if action == "SWITCH_PROFILE":
+        profile_id = arg.strip()
+        try:
+            profile = pm.load(profile_id)
+            await update.message.reply_text(f"Профиль переключён: {profile.name}")
+        except FileNotFoundError:
+            await update.message.reply_text(f"Профиль не найден: {profile_id}")
+        return True
+
+    if action == "CREATE_PROFILE":
+        name, _, direction = arg.partition("|")
+        profile_id = name.strip().lower().replace(" ", "_")
+        profile = pm.create(profile_id, name.strip(), direction.strip())
+        await update.message.reply_text(f"Профиль создан: {profile.name}")
+        return True
+
+    if action == "LIST_EQUIPMENT":
+        reg = EquipmentRegistry(pm.active.equipment_dir)
+        brands = reg.list_brands()
+        if brands:
+            await update.message.reply_text(
+                "Оборудование:\n" + "\n".join(f"• {b}" for b in brands)
+            )
+        else:
+            await update.message.reply_text("Реестр оборудования пуст.")
+        return True
+
+    if action == "ADD_EQUIPMENT":
+        await update.message.reply_text("Функция в разработке")
+        return True
+
+    # ACTION:QUESTION — продолжить обычную обработку
+    return False
 
 
 def _is_for_rafail(text: str) -> bool:
@@ -251,6 +331,9 @@ async def handle_knowledge_topic(
 ) -> None:
     text = (text_override or update.message.text or "").strip()
     lower = text.lower()
+
+    if await _handle_profile_command(text, update, ctx):
+        return
 
     if any(w in lower for w in ("pending", "очередь", "ожидают")):
         text_out, markup = pending_card(0)

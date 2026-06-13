@@ -1,0 +1,24 @@
+model: SUN-10K-SG04LP3-EU
+brand: Deye
+category: inverter_hybrid
+price_current: 0
+documents:
+  - https://solar.biz.ua/Deye_sun_30-36k_g04p3_instruction_UA.pdf
+service_intervals:
+  - months: 12
+    action: "Чистка вентилятора охолодження, перевірка клем"
+  - months: 24
+    action: "Перевірка конденсаторів, оновлення прошивки"
+compatible_with:
+  - Pylontech US5000
+  - JA Solar 550W
+courses_linked:
+  - "Монтаж мережевих СЕС → секція підключення інвертора"
+  - "Продажі СЕС → технічні характеристики"
+specs:
+  power_kw: 10
+  phases: 3
+  pv_voltage_max: 1000
+  battery_voltage: 48
+  mppt_channels: 2
+  monitoring: Solarman / DEA Cloud

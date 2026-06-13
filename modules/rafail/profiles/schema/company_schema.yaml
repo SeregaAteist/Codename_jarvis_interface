@@ -1,0 +1,18 @@
+# Схема профиля компании для Рафаила
+name: ""
+location: ""
+type: ""
+language: "uk"
+directions: []
+knowledge_base:
+  primary: "moodle"
+  url: ""
+  token_env: ""
+roles: []
+active_role: "trainee"
+active_dept: "sales"
+sources:
+  rss: []
+  drive_folders: []
+  web: []
+equipment_registry: "equipment/"

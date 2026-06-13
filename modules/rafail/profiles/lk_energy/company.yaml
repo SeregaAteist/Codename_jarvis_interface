@@ -1,0 +1,43 @@
+name: LK Energy Group
+location: Одесса, Украина
+type: EPC-подрядник
+language: uk
+
+directions:
+  - name: СЭС
+    description: Солнечные электростанции под ключ
+    priority: 1
+  - name: Производство оборудования
+    priority: 2
+  - name: Монтаж
+    priority: 3
+  - name: Проектирование
+    priority: 4
+
+knowledge_base:
+  primary: moodle
+  url: https://my.lk-energy.com.ua
+  token_env: MOODLE_TOKEN
+
+roles:
+  sales: [trainee, junior_manager, manager, senior_manager, expert]
+  engineers: [engineer_trainee, engineer, senior_engineer, lead_engineer, expert_engineer]
+  installers: [assistant, installer, senior_installer, foreman]
+  cross: [guru, team_lead]
+
+active_role: trainee
+active_dept: sales
+
+sources:
+  rss:
+    - name: PV Magazine
+      url: https://www.pv-magazine.com/feed/
+      domain: ses
+    - name: Electrek Solar
+      url: https://electrek.co/feed/
+      domain: ses
+    - name: Epravda
+      url: https://www.epravda.com.ua/rss/
+      domain: energy
+
+equipment_registry: equipment/
