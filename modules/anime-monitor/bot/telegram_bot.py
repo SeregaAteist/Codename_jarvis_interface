@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+import sys
 
 from agents.db_agent import (
     WATCHLIST_STATUSES,
@@ -26,6 +28,10 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+
+_JARVIS_ROOT = os.path.expanduser("~/Projects/jarvis")
+if _JARVIS_ROOT not in sys.path:
+    sys.path.insert(0, _JARVIS_ROOT)
 
 logger = logging.getLogger("bot")
 
@@ -385,6 +391,45 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("⚠️ Запись не найдена — обновите вотчлист.")
 
 
+class _AnimeQuestionFilter(filters.MessageFilter):
+    """Текстовый вопрос в топике аниме-бота (не кнопка меню, только от владельца)."""
+
+    def filter(self, message) -> bool:
+        if not message.text or message.text in MENU_BUTTONS:
+            return False
+        user_id = message.from_user.id if message.from_user else 0
+        if cfg.OWNER_USER_ID and user_id != cfg.OWNER_USER_ID:
+            return False
+        return (
+            str(message.chat_id) == cfg.GROUP_CHAT_ID
+            and message.message_thread_id == cfg.THREAD_ID
+        )
+
+
+_anime_question_filter = _AnimeQuestionFilter()
+
+_ANIME_EXPERT_PROMPT = (
+    "Ты эксперт по аниме. Отвечай кратко, по делу, на русском языке.\n"
+    "Если вопрос про тайтл — укажи сезоны, даты выхода, спешлы, хронологию.\n"
+    "Если вопрос про рекомендации — учитывай жанр и стиль.\n\nВопрос: {question}"
+)
+
+
+async def handle_text_question(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    from shared.llm import router
+
+    question = update.message.text.strip()
+    thinking = await update.message.reply_text("🔍 Ищу информацию...")
+    try:
+        answer = await router.generate(
+            "quick_analysis", _ANIME_EXPERT_PROMPT.format(question=question)
+        )
+        await thinking.edit_text(answer[:4000])
+    except Exception as e:
+        logger.error("Anime question LLM error: %s", e)
+        await thinking.edit_text(f"❌ Ошибка: {type(e).__name__}: {e}")
+
+
 async def handle_unknown(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Используйте кнопки меню, сэр.",
@@ -415,6 +460,7 @@ def build_app() -> Application:
     app.add_handler(MessageHandler(filters.Regex("^🔍 Скан$"), handle_scan))
     app.add_handler(MessageHandler(filters.Regex("^➖ Убрать$"), handle_drop_start))
     app.add_handler(CallbackQueryHandler(handle_callback))
+    app.add_handler(MessageHandler(_anime_question_filter, handle_text_question))
     app.add_handler(MessageHandler(filters.TEXT, handle_unknown))
 
     return app
