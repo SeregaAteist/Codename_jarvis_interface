@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
-import os
-import secrets
 import time
 from collections import deque
 
@@ -13,105 +12,112 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from modules.kommo.client import KommoClient
+from modules.ringostat.employees import find_by_sip
+from modules.ringostat.notifier import CallNotifier
+from shared.config.settings import get_settings
+from shared.models.ringostat import CallDisposition
+
 load_dotenv(override=False)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-app = FastAPI()
 
-# fail-closed: без RINGOSTAT_WEBHOOK_SECRET в .env все запросы отклоняются
-WEBHOOK_SECRET = os.getenv("RINGOSTAT_WEBHOOK_SECRET", "")
-KOMMO_DOMAIN = os.getenv("KOMMO_DOMAIN", "lkenergy.kommo.com")
-
-# rate limit: эндпоинт публичный (Tailscale Funnel) — не больше 60 хитов/мин
-RATE_LIMIT, RATE_WINDOW = 60, 60.0
+# rate limit: не больше 60 хитов/мин (эндпоинт публичный через Tailscale Funnel)
+_RATE_LIMIT, _RATE_WINDOW = 60, 60.0
 _hits: deque[float] = deque()
 
 
 def _rate_ok() -> bool:
     now = time.monotonic()
-    while _hits and now - _hits[0] > RATE_WINDOW:
+    while _hits and now - _hits[0] > _RATE_WINDOW:
         _hits.popleft()
-    if len(_hits) >= RATE_LIMIT:
+    if len(_hits) >= _RATE_LIMIT:
         return False
     _hits.append(now)
     return True
 
 
-@app.post("/webhook/ringostat")
-async def ringostat_webhook(request: Request):
-    if not _rate_ok():
-        raise HTTPException(status_code=429, detail="Too Many Requests")
-    token = (
-        request.headers.get("X-Webhook-Secret")
-        or request.query_params.get("secret")
-        or ""
-    )
-    if not WEBHOOK_SECRET or not secrets.compare_digest(token, WEBHOOK_SECRET):
-        raise HTTPException(status_code=403, detail="Forbidden")
+class RingostatWebhookHandler:
+    """Обрабатывает входящие вебхуки Ringostat."""
 
-    data = await request.json()
-    logger.info("[Ringostat] RAW:\n%s", json.dumps(data, ensure_ascii=False, indent=2))
+    def __init__(self, kommo: KommoClient, notifier: CallNotifier) -> None:
+        self._kommo = kommo
+        self._notifier = notifier
+        self._secret = get_settings().ringostat_webhook_secret
 
-    phone = data.get("caller_id") or data.get("called_id") or ""
-    if not phone:
-        return JSONResponse({"status": "skip", "reason": "no phone"})
+    def verify_token(self, token: str | None) -> bool:
+        if not token or not self._secret:
+            return False
+        return hmac.compare_digest(token, self._secret)
 
-    # ANSWERED → топик группы; всё остальное (MISSED, NO ANSWER, BUSY) → личка
-    is_urgent = data.get("disposition", "").upper() != "ANSWERED"
+    async def handle(self, data: dict[str, object]) -> dict[str, str]:
+        phone = str(data.get("caller_id") or data.get("called_id") or "")
+        if not phone:
+            return {"status": "skip", "reason": "no phone"}
 
-    # менеджер по SIP из ringostat.yaml (поле employee/employee_ext в payload)
-    from modules.ringostat.employees import find_by_sip
+        # ANSWERED → топик; MISSED/NO ANSWER/BUSY → личка
+        disposition_raw = str(data.get("disposition", "")).upper()
+        is_urgent = disposition_raw != CallDisposition.ANSWERED.value
 
-    emp = find_by_sip(data.get("employee") or data.get("employee_ext") or "")
-    manager_name = emp["name"] if emp else ""
+        emp = find_by_sip(str(data.get("employee") or data.get("employee_ext") or ""))
+        manager_name = emp["name"] if emp else ""
 
-    # ищем контакт и сделку в Kommo
-    try:
-        from modules.kommo.client import (
-            find_contact_by_phone,
-            find_lead_by_contact,
-            get_lead_link,
+        logger.info(
+            "[Ringostat] RAW:\n%s", json.dumps(data, ensure_ascii=False, indent=2)
         )
-        from modules.ringostat.notifier import notify_call
 
-        contact = await find_contact_by_phone(phone)
-        if contact:
-            lead = await find_lead_by_contact(contact["id"])
-            if lead:
-                lead_url = await get_lead_link(lead)
-                await notify_call(
-                    phone=phone,
-                    contact_name=contact.get("name", phone),
-                    lead_name=lead.get("name", "Сделка"),
-                    lead_url=lead_url,
-                    manager_name=manager_name,
-                    is_urgent=is_urgent,
-                )
-            else:
-                await notify_call(
-                    phone=phone,
-                    contact_name=contact.get("name", phone),
-                    lead_name="Сделка не найдена",
-                    lead_url=f"https://{KOMMO_DOMAIN}/contacts/detail/{contact['id']}",
-                    manager_name=manager_name,
-                    is_urgent=is_urgent,
-                )
-        else:
-            await notify_call(
-                phone=phone,
-                contact_name=phone,
-                lead_name="Контакт не найден в Kommo",
-                lead_url=f"https://{KOMMO_DOMAIN}/leads/",
-                manager_name=manager_name,
-                is_urgent=is_urgent,
-            )
-    except Exception as e:
-        logger.error("[webhook] ошибка: %s", e)
+        contact = await self._kommo.find_contact_by_phone(phone)
+        if not contact:
+            await self._notifier.notify_unknown(phone)
+            return {"status": "unknown_contact"}
 
-    return JSONResponse({"status": "ok"})
+        leads = await self._kommo.get_contact_leads(contact.id)
+        lead = leads[-1] if leads else None
+        lead_url = self._kommo.get_lead_url(lead.id) if lead else ""
+        lead_name = lead.name if lead else "Сделка не найдена"
+
+        await self._notifier.notify_call(
+            phone=phone,
+            contact_name=contact.name,
+            lead_name=lead_name,
+            lead_url=lead_url,
+            manager_name=manager_name,
+            is_urgent=is_urgent,
+        )
+        return {"status": "ok"}
 
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+def create_app() -> FastAPI:
+    kommo = KommoClient()
+    notifier = CallNotifier()
+    handler = RingostatWebhookHandler(kommo=kommo, notifier=notifier)
+    app = FastAPI()
+
+    @app.post("/webhook/ringostat")
+    async def webhook(request: Request) -> JSONResponse:
+        if not _rate_ok():
+            raise HTTPException(status_code=429, detail="Too Many Requests")
+        token = (
+            request.headers.get("X-Webhook-Secret")
+            or request.query_params.get("secret")
+            or ""
+        )
+        if not handler.verify_token(token):
+            raise HTTPException(status_code=403, detail="Forbidden")
+        data = await request.json()
+        try:
+            result = await handler.handle(data)
+        except Exception as e:
+            logger.error("[webhook] ошибка: %s", e)
+            result = {"status": "error"}
+        return JSONResponse(result)
+
+    @app.get("/health")
+    async def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    return app
+
+
+app = create_app()
