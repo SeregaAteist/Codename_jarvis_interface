@@ -8,6 +8,7 @@ import logging
 import time
 from collections import deque
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -16,7 +17,7 @@ from modules.kommo.client import KommoClient
 from modules.ringostat.employees import find_by_sip
 from modules.ringostat.notifier import CallNotifier
 from shared.config.settings import get_settings
-from shared.models.ringostat import CallDisposition
+from shared.models.ringostat import CallDisposition, CallEvent
 
 load_dotenv(override=False)
 
@@ -56,11 +57,26 @@ class RingostatWebhookHandler:
         if not phone:
             return {"status": "skip", "reason": "no phone"}
 
-        # ANSWERED → топик; MISSED/NO ANSWER/BUSY → личка
         disposition_raw = str(data.get("disposition", "")).upper()
         is_urgent = disposition_raw != CallDisposition.ANSWERED.value
 
-        emp = find_by_sip(str(data.get("employee") or data.get("employee_ext") or ""))
+        try:
+            disposition_enum = CallDisposition(disposition_raw)
+        except ValueError:
+            disposition_enum = CallDisposition.NO_ANSWER
+
+        event = CallEvent(
+            call_id=str(data.get("call_id", "")),
+            caller_id=phone,
+            called_id=str(data.get("called_id", "")),
+            duration=int(data.get("duration", 0) or 0),
+            disposition=disposition_enum,
+            audio_url=str(data.get("record_url") or data.get("audio_url") or "")
+            or None,
+            manager_sip=str(data.get("sip") or data.get("manager_sip") or "") or None,
+        )
+
+        emp = find_by_sip(event.manager_sip or "")
         manager_name = emp["name"] if emp else ""
 
         logger.info(
@@ -85,7 +101,134 @@ class RingostatWebhookHandler:
             manager_name=manager_name,
             is_urgent=is_urgent,
         )
+
+        if (
+            event.audio_url
+            and event.disposition == CallDisposition.ANSWERED
+            and event.duration > 30
+        ):
+            import asyncio
+
+            asyncio.create_task(
+                self._process_call_audio(event, contact.name, lead_name, lead_url, lead)
+            )
+
         return {"status": "ok"}
+
+    async def _process_call_audio(
+        self,
+        event: CallEvent,
+        contact_name: str,
+        lead_name: str,
+        lead_url: str,
+        lead: object,
+    ) -> None:
+        """Асинхронная обработка аудио после ответа на webhook."""
+        try:
+            from modules.ringostat.analyzer import get_analyzer, get_transcriber
+            from modules.ringostat.audio import get_downloader
+
+            downloader = get_downloader()
+            audio_path = await downloader.download(event.call_id, event.audio_url or "")
+            if not audio_path:
+                return
+
+            transcript = await get_transcriber().transcribe(
+                audio_path,
+                {
+                    "call_id": event.call_id,
+                    "caller_id": event.caller_id,
+                    "duration": event.duration,
+                },
+            )
+
+            result = await get_analyzer().analyze(
+                transcript,
+                {
+                    "call_id": event.call_id,
+                    "caller_id": event.caller_id,
+                    "duration": event.duration,
+                    "manager_name": "",
+                },
+            )
+
+            cfg = get_settings()
+            text = (
+                f"📞 <b>Аналіз дзвінка</b>\n"
+                f"👤 {contact_name} | {event.caller_id}\n"
+                f"🔗 <a href='{lead_url}'>{lead_name}</a>\n"
+                f"⏱ {event.duration} сек\n\n"
+                f"📋 <b>Резюме:</b> {result.summary}\n"
+                f"📊 <b>Ефективність:</b> {result.script_effectiveness}\n"
+            )
+            if result.agreements:
+                text += (
+                    "✅ <b>Домовленості:</b>\n"
+                    + "\n".join(f"• {a}" for a in result.agreements)
+                    + "\n"
+                )
+            if result.objections:
+                text += (
+                    "⚠️ <b>Заперечення:</b>\n"
+                    + "\n".join(f"• {o}" for o in result.objections)
+                    + "\n"
+                )
+            if result.next_step:
+                text += f"➡️ <b>Наступний крок:</b> {result.next_step}\n"
+
+            work_token = cfg.jarvis_work_bot_token or cfg.telegram_bot_token
+            async with httpx.AsyncClient(timeout=10) as c:
+                await c.post(
+                    f"https://api.telegram.org/bot{work_token}/sendMessage",
+                    json={
+                        "chat_id": cfg.work_chat_id,
+                        "message_thread_id": cfg.work_topic_id,
+                        "text": text,
+                        "parse_mode": "HTML",
+                        "disable_web_page_preview": True,
+                    },
+                )
+
+            if lead is not None:
+                await self._kommo.add_note(
+                    lead.id,
+                    f"Транскрипт дзвінка {event.call_id}:\n\n{transcript[:3000]}",
+                )
+
+            downloader.cleanup(event.call_id)
+
+            if result.objections and result.script_effectiveness in ("low", "medium"):
+                await self._signal_rafail(result)
+
+        except Exception as e:
+            logger.error("[webhook] ошибка обработки аудио %s: %s", event.call_id, e)
+
+    async def _signal_rafail(self, result: object) -> None:
+        """Записать задачу для Рафаила — обновить скрипты по возражениям."""
+        import os
+        from pathlib import Path
+
+        tasks_dir = Path(os.path.expanduser("~/Projects/jarvis/tasks/pending"))
+        tasks_dir.mkdir(parents=True, exist_ok=True)
+
+        objections_text = "\n".join(f"- {o}" for o in result.objections)
+        suggestions_text = "\n".join(f"- {s}" for s in result.improvement_suggestions)
+
+        task_content = (
+            f"# TASK_call_signal_{result.call_id}\n"
+            f"## Источник: Ringostat звонок\n"
+            f"## REPLY_CHAT_ID: -1003891647143\n"
+            f"## REPLY_TOPIC_ID: 205\n\n"
+            f"## ЗАДАЧА\n"
+            f"Рафаил, проанализируй возражения из звонка и предложи улучшение скриптов.\n\n"
+            f"Возражения клиента:\n{objections_text}\n\n"
+            f"Эффективность скрипта: {result.script_effectiveness}\n"
+            f"Предложения по улучшению:\n{suggestions_text}\n\n"
+            f"Проверь существующие скрипты в БЗ и предложи конкретные правки.\n"
+        )
+        task_file = tasks_dir / f"TASK_call_signal_{result.call_id}.md"
+        task_file.write_text(task_content)
+        logger.info("[webhook] сигнал Рафаилу создан: %s", task_file)
 
 
 def create_app() -> FastAPI:
