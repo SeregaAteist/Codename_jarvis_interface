@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -16,6 +18,20 @@ from agents.notify_agent import notify_new_episodes, notify_scan_complete, send_
 from bot.telegram_bot import build_app
 from api.server import app as fastapi_app
 
+def _setup_logging() -> None:
+    log_dir = Path(__file__).parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    file_handler = RotatingFileHandler(
+        log_dir / "anime-monitor.log", maxBytes=5 * 1024 * 1024, backupCount=3
+    )
+    file_handler.setFormatter(fmt)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(fmt)
+    logging.basicConfig(level=logging.INFO, handlers=[file_handler, stream_handler])
+
+
+_setup_logging()
 logger = logging.getLogger("main")
 
 # Реестр агентов обогащения. Новый источник = класс + строка здесь.
@@ -46,7 +62,10 @@ async def enrich_all(items: list[dict]) -> list[dict]:
         if not missing:
             break
         logger.info("[%s] обогащение: %d тайтлов", enricher.name, len(missing))
-        await enricher.enrich(missing)
+        try:
+            await asyncio.wait_for(enricher.enrich(missing), timeout=30)
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.warning("[%s] пропущен: %s", enricher.name, e)
     return items
 
 
