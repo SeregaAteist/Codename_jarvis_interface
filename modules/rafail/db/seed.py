@@ -3,38 +3,74 @@
 Засеваются один раз при init_db(), если таблицы пусты. Дальше управление —
 кнопками в TG (Настройки), правки в БД переживают деплой.
 """
+
 from __future__ import annotations
 
 SOURCES = [
     # (domain, name, url, type, selector, track)
     ("ses", "Ecotown", "https://ecotown.com.ua/feed/", "rss", None, "all"),
     ("ses", "Kosatka Media", "https://kosatka.media/rss", "rss", None, "all"),
-    ("ses", "Avenston Blog", "https://avenston.com/articles/", "web", "article h2 a", "engineers"),
-    ("ses", "PV Magazine", "https://www.pv-magazine.com/feed/", "rss", None, "engineers"),
-    ("energy", "НКРЕКП Новини", "https://www.nerc.gov.ua/news", "web", ".news-item a", "engineers"),
+    (
+        "ses",
+        "Avenston Blog",
+        "https://avenston.com/articles/",
+        "web",
+        "article h2 a",
+        "engineers",
+    ),
+    (
+        "ses",
+        "PV Magazine",
+        "https://www.pv-magazine.com/feed/",
+        "rss",
+        None,
+        "engineers",
+    ),
+    (
+        "energy",
+        "НКРЕКП Новини",
+        "https://www.nerc.gov.ua/news",
+        "web",
+        ".news-item a",
+        "engineers",
+    ),
     ("energy", "Energo UA", "https://enkorr.ua/rss", "rss", None, "all"),
-    ("energy", "ExPro Electricity", "https://expro.com.ua/rss", "rss", None, "engineers"),
-    ("sales", "HubSpot Sales Blog", "https://blog.hubspot.com/sales/rss.xml", "rss", None, "sales"),
+    (
+        "energy",
+        "ExPro Electricity",
+        "https://expro.com.ua/rss",
+        "rss",
+        None,
+        "engineers",
+    ),
+    (
+        "sales",
+        "HubSpot Sales Blog",
+        "https://blog.hubspot.com/sales/rss.xml",
+        "rss",
+        None,
+        "sales",
+    ),
     ("sales", "Close Blog", "https://www.close.com/blog/rss.xml", "rss", None, "sales"),
 ]
 
 DRIVE_FOLDERS = [
     # (key, folder_id, title)
-    ("moodle_root",    "1AsasJyrCVSsISI6q0kRI-oROj_imYdt-", "Moodle корень"),
-    ("course_ses",     "1xSSn_XWVJPCsgRXKkyZ8QPdaJUHPoADF", "Курс Менеджер СЕС"),
-    ("section_admin",  "1-mR-fTWH5UBqpBMzVv8rkLaz6g_Jdy3Y", "_АДМИН"),
-    ("section_start",  "1k65M1KPNZvmdiZ95WaeWYTRze2eck9VM", "00. СТАРТ"),
+    ("moodle_root", "1AsasJyrCVSsISI6q0kRI-oROj_imYdt-", "Moodle корень"),
+    ("course_ses", "1xSSn_XWVJPCsgRXKkyZ8QPdaJUHPoADF", "Курс Менеджер СЕС"),
+    ("section_admin", "1-mR-fTWH5UBqpBMzVv8rkLaz6g_Jdy3Y", "_АДМИН"),
+    ("section_start", "1k65M1KPNZvmdiZ95WaeWYTRze2eck9VM", "00. СТАРТ"),
     ("section_market", "1syqofeMd_AxsHzfU7fGKF34BPB0m5GqU", "01. РЫНОК"),
-    ("section_ses",    "1jI9NPpXlQWWL8mTY1GufKCzOnNg7HDn_", "02. КАК РАБОТАЕТ СЭС"),
-    ("section_equip",  "1JBu91CuVnNvB1vwOOgsdvDRUqVTAikHZ", "03. ОБОРУДОВАНИЕ"),
+    ("section_ses", "1jI9NPpXlQWWL8mTY1GufKCzOnNg7HDn_", "02. КАК РАБОТАЕТ СЭС"),
+    ("section_equip", "1JBu91CuVnNvB1vwOOgsdvDRUqVTAikHZ", "03. ОБОРУДОВАНИЕ"),
     ("section_client", "1rZCNDdfBE9hUkZMPhOp9ruxRESvLcBtX", "04. КЛИЕНТ И РЫНОК"),
     ("section_funnel", "13P7N-D5WmQVi5NC5G_xslH5nodQKw0gH", "05. ВОРОНКА/СКРИПТЫ"),
-    ("section_finance","1Z8lLouJXK8hOsvZy4Whd9rkKZOkl7ZE_", "06. ФИНАНСЫ"),
-    ("section_crm",    "1wNguoBroX1E0-cV9KtXwt0cZ52t3FB2X", "07. ПРОЦЕССЫ/CRM"),
-    ("section_epc",    "10ZBtIgHnlZio_NKm--sVCpbfh6SPIhRM", "08. БОЛЬШИЕ СДЕЛКИ"),
-    ("section_after",  "1DBsuIksfLkLKetsoE5hQudU1rHnAcNk4", "09. ПОСЛЕ СДЕЛКИ"),
-    ("kb_v2",          "1uowsvJTxFLFw3N6CTWOOif0baDMcwIGBpjDe-8uybHo", "БЗ v2.0"),
-    ("template",       "14DLRd4HIRRK41UQdQEDhIrd9l7ZIxztAScTnFAdDhs0", "Шаблон модуля"),
+    ("section_finance", "1Z8lLouJXK8hOsvZy4Whd9rkKZOkl7ZE_", "06. ФИНАНСЫ"),
+    ("section_crm", "1wNguoBroX1E0-cV9KtXwt0cZ52t3FB2X", "07. ПРОЦЕССЫ/CRM"),
+    ("section_epc", "10ZBtIgHnlZio_NKm--sVCpbfh6SPIhRM", "08. БОЛЬШИЕ СДЕЛКИ"),
+    ("section_after", "1DBsuIksfLkLKetsoE5hQudU1rHnAcNk4", "09. ПОСЛЕ СДЕЛКИ"),
+    ("kb_v2", "1uowsvJTxFLFw3N6CTWOOif0baDMcwIGBpjDe-8uybHo", "БЗ v2.0"),
+    ("template", "14DLRd4HIRRK41UQdQEDhIrd9l7ZIxztAScTnFAdDhs0", "Шаблон модуля"),
 ]
 
 # Контент промптов (укр. — рабочий контент курсов, НЕ интерфейс)
@@ -110,6 +146,44 @@ PROMPTS = {
 
 Поверни ПОВНИЙ текст нової версії модуля, без коментарів.
 """,
+    "relevance_check": """Ти — аналітик бази знань LK Energy Group (Одеса, Україна), EPC-підрядник СЕС.
+
+Матеріал: {title}
+
+Оціни чи є цей матеріал СИГНАЛОМ для оновлення навчальних матеріалів компанії.
+
+YES якщо матеріал стосується:
+- Сонячна енергетика: технології панелей, інверторів, акумуляторів, монтажу СЕС
+- Ринок СЕС України: ціни, попит, конкуренти, тренди
+- Законодавство України: зелений тариф, НКРЕкП, дозволи, субсидії, "мережа"
+- Продажі B2B: техніки продажів, робота з запереченнями, CRM
+- Енергетика України: тарифи, блекаути, генерація, розподілені системи
+- Нове обладнання: моделі інверторів, панелей, акумуляторів які є на ринку України
+- Регуляторні зміни: будь-які закони що впливають на СЕС або електрощитове обладнання
+
+NO якщо:
+- Зарубіжні субсидії без зв'язку з Україною (австралійські, американські програми)
+- Великі промислові проекти без навчальної цінності для менеджерів/монтажників
+- Нерелевантні галузі (електровантажівки, харчова промисловість тощо)
+
+Відповідай ТІЛЬКИ YES або NO.""",
+    "signal_analysis": """Ти — куратор бази знань LK Energy Group.
+
+Матеріал: {title}
+Зміст: {content}
+
+Визнач:
+1. SIGNAL_TYPE: new_info / law_change / price_change / technology_update / sales_technique
+2. AFFECTS: які розділи бази знань потребують оновлення (продажі / монтаж / проектування / регламенти)
+3. ACTION: add_section / update_existing / create_regulation / update_script
+4. PRIORITY: high / medium / low
+
+Формат відповіді:
+SIGNAL_TYPE: ...
+AFFECTS: ...
+ACTION: ...
+PRIORITY: ...
+SUMMARY: одне речення про суть змін для бази знань""",
     "universal_section": """Ти — навчальний контент-менеджер LK Energy Group (EPC-підрядник СЕС, Одеса).
 
 Створи навчальний матеріал для рівня: {level_name} ({dept})
@@ -163,7 +237,7 @@ SETTINGS = {
     "quiz_questions": "7",
     "collect_hours": "48",
     "approval_timeout_hours": "24",
-    "quizzes": "{}",   # JSON: {"М1": {"quiz_id": 0, "category_id": 0}}
+    "quizzes": "{}",  # JSON: {"М1": {"quiz_id": 0, "category_id": 0}}
 }
 
 

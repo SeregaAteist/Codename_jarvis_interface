@@ -8,7 +8,6 @@ Conflict с com.jarvis.tg-media-analyzer, а меню Рафаила там уж
 
 from __future__ import annotations
 
-import io
 import json
 import logging
 import os
@@ -133,8 +132,12 @@ def pending_card(idx: int) -> tuple[str, InlineKeyboardMarkup | None]:
     keyboard = [
         [
             InlineKeyboardButton("✅ Одобрить", callback_data=f"rb:ok:{p['id']}:{idx}"),
-            InlineKeyboardButton("❌ Отклонить", callback_data=f"rb:no:{p['id']}"),
-            InlineKeyboardButton("👁 Полный текст", callback_data=f"rb:full:{p['id']}"),
+            InlineKeyboardButton(
+                "❌ Отклонить", callback_data=f"rb:no:{p['id']}:{idx}"
+            ),
+            InlineKeyboardButton(
+                "👁 Полный текст", callback_data=f"rb:full:{p['id']}:{idx}"
+            ),
         ],
         nav + [InlineKeyboardButton("🏠 Меню", callback_data="rb:menu")],
     ]
@@ -226,14 +229,6 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    awaiting = ctx.chat_data.pop("rb_await", None)
-    if awaiting and awaiting[0] == "reject":
-        kb.reject(awaiting[1], msg.text.strip())
-        kb.log_sync("reject", "ok", f"processed={awaiting[1]}")
-        await update.effective_chat.send_message(
-            "❌ Отклонено, причина записана.", reply_markup=main_menu(), **thread_kwargs
-        )
-        return
     await update.effective_chat.send_message(
         "Меню Рафаила:", reply_markup=main_menu(), **thread_kwargs
     )
@@ -290,15 +285,29 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
     elif action == "no":
-        ctx.chat_data["rb_await"] = ("reject", int(parts[2]))
-        await q.edit_message_text("📝 Напишите причину отклонения одним сообщением:")
+        pid, idx = int(parts[2]), int(parts[3])
+        kb.reject(pid, "")
+        kb.log_sync("reject", "ok", f"processed={pid}")
+        text, markup = pending_card(idx)
+        await q.edit_message_text(
+            f"❌ Відхилено.\n\n{text}",
+            reply_markup=markup or main_menu(),
+            parse_mode="HTML",
+        )
 
     elif action == "full":
-        p = kb.get_processed(int(parts[2]))
+        pid, idx = int(parts[2]), int(parts[3])
+        p = kb.get_processed(pid)
         if p:
-            buf = io.BytesIO((p.get("content") or "").encode("utf-8"))
-            buf.name = f"rafail_{p['id']}.md"
-            await q.message.reply_document(buf, caption=p["title"][:200])
+            content = (p.get("content") or "")[:3500]
+            back_markup = InlineKeyboardMarkup(
+                [[InlineKeyboardButton("⬅️ Назад", callback_data=f"rb:pend:{idx}")]]
+            )
+            await q.edit_message_text(
+                f"<b>{p['title']}</b>\n\n{content}",
+                reply_markup=back_markup,
+                parse_mode="HTML",
+            )
 
     elif action == "lvl":
         text, markup = level_menu()

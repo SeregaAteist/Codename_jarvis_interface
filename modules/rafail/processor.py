@@ -305,6 +305,7 @@ async def process_pending(limit: int = 10, level: str = "", dept: str = "") -> d
                 )
                 results["skipped"] += 1
                 continue
+            await analyze_signal(mat["id"])
             pid = await make_universal_section(mat["id"], level=level, dept=dept)
             results["processed"] += 1
             results["ids"].append(pid)
@@ -327,3 +328,35 @@ async def is_relevant(title: str) -> bool:
             "[processor] is_relevant ошибка для '%s': %s — пропускаем", title, e
         )
         return True  # при ошибке — пропускаем, не блокируем пайплайн
+
+
+async def analyze_signal(material_id: int) -> dict:
+    """Анализ сигнала: что обновить в БЗ. Возвращает parsed dict + логирует."""
+    mat = kb.get_material(material_id)
+    if not mat:
+        return {}
+    prompt = kb.get_prompt("signal_analysis").format(
+        title=mat["title"],
+        content=(mat["raw_content"] or "")[:10000],
+    )
+    try:
+        raw = await _generate(prompt, quality=False)
+    except Exception as e:
+        logger.warning("[processor] analyze_signal #%d: %s", material_id, e)
+        return {}
+
+    result: dict = {}
+    for line in raw.strip().splitlines():
+        if ":" in line:
+            key, _, value = line.partition(":")
+            result[key.strip().lower()] = value.strip()
+
+    log_detail = (
+        f"material={material_id} "
+        f"type={result.get('signal_type', '?')} "
+        f"priority={result.get('priority', '?')} "
+        f"affects={result.get('affects', '?')}"
+    )
+    kb.log_sync("signal_analysis", "ok", log_detail)
+    logger.info("[processor] signal_analysis %s", log_detail)
+    return result
