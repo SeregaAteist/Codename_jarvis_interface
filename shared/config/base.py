@@ -3,10 +3,12 @@
 Слой 1 из 3. Не содержит секретов (см. secrets.py) и не привязан к
 конкретному боту (см. modules/<name>.yaml). Общий фундамент для всех ботов.
 """
+
 from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -22,7 +24,7 @@ TASKS_DIR: Path = Path(os.getenv("TASKS_DIR", ROOT / "tasks"))
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
 # Общие дефолты — переопределяются в modules/<name>.yaml или через .env.
-DEFAULTS: dict = {
+DEFAULTS: dict[str, Any] = {
     "batch_timeout": 8,
     "max_image_size": 4 * 1024 * 1024,
     "gemini_model": "gemini-2.5-flash",
@@ -34,7 +36,7 @@ DEFAULTS: dict = {
 }
 
 
-def load_module_yaml(name: str) -> dict:
+def load_module_yaml(name: str) -> dict[str, Any]:
     """Прочитать modules/<name>.yaml бота. Отсутствует → пустой dict."""
     p = MODULES_DIR / f"{name}.yaml"
     return yaml.safe_load(p.read_text(encoding="utf-8")) if p.exists() else {}

@@ -8,10 +8,12 @@
 Каждый бот зовёт load("<name>") и получает типизированный ModuleConfig.
 Для обратной совместимости media_analyzer доступен как CFG.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from shared.config import base, secrets
 
@@ -42,11 +44,15 @@ class ModuleConfig:
     # Executor (default ssh — рабочий поток; см. base.DEFAULTS)
     EXECUTOR: str
     # Сырой yaml бота — для секций вроде llm.roles (используется роутером, Фаза 3)
-    raw: dict = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict)
 
     def require_security_ids(self) -> None:
         """Fail-fast по обязательным ID безопасности (RCE-уровень доступа)."""
-        if not self.TELEGRAM_TOKEN or self.TELEGRAM_CHAT_ID == 0 or self.OWNER_USER_ID == 0:
+        if (
+            not self.TELEGRAM_TOKEN
+            or self.TELEGRAM_CHAT_ID == 0
+            or self.OWNER_USER_ID == 0
+        ):
             raise RuntimeError(
                 "CONFIG FAIL-FAST: не заданы обязательные ID безопасности "
                 "(TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID / OWNER_USER_ID) в .env"
@@ -60,7 +66,9 @@ def load(module: str) -> ModuleConfig:
     media = y.get("media", {})
     d = base.DEFAULTS
 
-    token_env = tg.get("token_env", "TELEGRAM_BOT_TOKEN")  # мульти-бот: у каждого свой токен
+    token_env = tg.get(
+        "token_env", "TELEGRAM_BOT_TOKEN"
+    )  # мульти-бот: у каждого свой токен
     return ModuleConfig(
         name=module,
         TELEGRAM_TOKEN=secrets.req(token_env),
@@ -71,17 +79,30 @@ def load(module: str) -> ModuleConfig:
         GEMINI_KEYS=secrets.gemini_keys(),
         CLAUDE_KEYS=secrets.claude_keys(),
         GROQ_API_KEY=secrets.opt("GROQ_API_KEY"),
-        GEMINI_MODEL=secrets.opt("GEMINI_MODEL", llm.get("gemini_model", d["gemini_model"])),
+        GEMINI_MODEL=secrets.opt(
+            "GEMINI_MODEL", llm.get("gemini_model", d["gemini_model"])
+        ),
         GEMINI_FALLBACK_MODEL=secrets.opt(
-            "GEMINI_FALLBACK_MODEL", llm.get("gemini_fallback_model", d["gemini_fallback_model"])
+            "GEMINI_FALLBACK_MODEL",
+            llm.get("gemini_fallback_model", d["gemini_fallback_model"]),
         ),
         CLAUDE_MODEL=llm.get("claude_model", d["claude_model"]),
         OLLAMA_HOST=secrets.opt("OLLAMA_HOST", d["ollama_host"]),
-        OLLAMA_MODEL=secrets.opt("OLLAMA_MODEL", llm.get("ollama_model", d["ollama_model"])),
+        OLLAMA_MODEL=secrets.opt(
+            "OLLAMA_MODEL", llm.get("ollama_model", d["ollama_model"])
+        ),
         TASKS_DIR=Path(secrets.opt("TASKS_DIR", str(base.TASKS_DIR))),
         DATA_DIR=base.DATA_DIR,
-        BATCH_TIMEOUT=int(secrets.opt("BATCH_TIMEOUT", str(media.get("batch_timeout", d["batch_timeout"])))),
-        MAX_IMAGE_SIZE=int(secrets.opt("MAX_IMAGE_SIZE", str(media.get("max_image_size", d["max_image_size"])))),
+        BATCH_TIMEOUT=int(
+            secrets.opt(
+                "BATCH_TIMEOUT", str(media.get("batch_timeout", d["batch_timeout"]))
+            )
+        ),
+        MAX_IMAGE_SIZE=int(
+            secrets.opt(
+                "MAX_IMAGE_SIZE", str(media.get("max_image_size", d["max_image_size"]))
+            )
+        ),
         EXECUTOR=secrets.opt("EXECUTOR", y.get("executor", d["executor"])),
         raw=y,
     )
