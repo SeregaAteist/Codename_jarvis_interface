@@ -1,24 +1,38 @@
 """JARVIS Notify — только отправка срочных уведомлений владельцу."""
+
 from __future__ import annotations
 
-import os
+from telegram.ext import Application
 
-from telegram import Bot
+from modules.bots.base_bot import JarvisBot
+from shared.config.settings import get_settings
 
-_bot: Bot | None = None
+
+class NotifyBot(JarvisBot):
+    """Бот для срочных уведомлений владельцу — только отправка, без polling."""
+
+    def __init__(self) -> None:
+        s = get_settings()
+        token = s.jarvis_notify_bot_token or s.telegram_bot_token
+        super().__init__(token=token, name="notify")
+
+    def register_handlers(self, app: Application) -> None:  # type: ignore[type-arg]
+        pass  # notify-бот не принимает команды
 
 
-async def get_bot() -> Bot:
-    global _bot
-    if not _bot:
-        token = os.getenv("JARVIS_NOTIFY_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
-        _bot = Bot(token=token)
-    return _bot
+# синглтон
+_notify: NotifyBot | None = None
+
+
+def get_notify_bot() -> NotifyBot:
+    global _notify
+    if _notify is None:
+        _notify = NotifyBot()
+        _notify.build()
+    return _notify
 
 
 async def send_urgent(text: str, parse_mode: str = "HTML") -> None:
-    bot = await get_bot()
-    owner_id = int(os.getenv("OWNER_USER_ID", "374728252"))
-    await bot.send_message(chat_id=owner_id, text=text,
-                           parse_mode=parse_mode,
-                           disable_web_page_preview=True)
+    """Отправить срочное уведомление владельцу."""
+    bot = get_notify_bot()
+    await bot.send_message(bot.owner_id, text, parse_mode=parse_mode)

@@ -2,6 +2,7 @@
 
 Роль 'local_chat'. Использует httpx + CFG.OLLAMA_HOST (default http://localhost:11434).
 """
+
 from __future__ import annotations
 
 import logging
@@ -11,7 +12,7 @@ from shared.config import CFG
 logger = logging.getLogger(__name__)
 
 
-async def generate(model: str, content) -> str:
+async def generate(model: str, content: str | list[str]) -> str:
     import httpx
 
     text = content if isinstance(content, str) else "\n".join(map(str, content))
@@ -20,7 +21,7 @@ async def generate(model: str, content) -> str:
         try:
             r = await cli.post(f"{CFG.OLLAMA_HOST}/api/generate", json=payload)
             r.raise_for_status()
-            return r.json().get("response", "").strip()
+            return str(r.json().get("response", "")).strip()
         except httpx.HTTPStatusError as e:
             logger.warning("[ollama] HTTP ошибка %d: %s", e.response.status_code, e)
             raise

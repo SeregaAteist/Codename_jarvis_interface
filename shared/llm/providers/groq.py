@@ -2,6 +2,7 @@
 
 Роль 'recommend'. Использует httpx (уже в зависимостях) — groq-SDK не требуется.
 """
+
 from __future__ import annotations
 
 import logging
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 _URL = "https://api.groq.com/openai/v1/chat/completions"
 
 
-async def generate(model: str, content, max_tokens: int = 1024) -> str:
+async def generate(model: str, content: str | list[str], max_tokens: int = 1024) -> str:
     if not CFG.GROQ_API_KEY:
         return "⚠️ Groq недоступен — нет GROQ_API_KEY в .env"
     import httpx
@@ -29,7 +30,7 @@ async def generate(model: str, content, max_tokens: int = 1024) -> str:
         try:
             r = await cli.post(_URL, json=payload, headers=headers)
             r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"]
+            return str(r.json()["choices"][0]["message"]["content"])
         except httpx.HTTPStatusError as e:
             code = e.response.status_code
             if code == 429:
