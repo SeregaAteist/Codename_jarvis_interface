@@ -20,12 +20,41 @@ TIMEOUT_PREFIX=""
 [ -n "$TIMEOUT_BIN" ] && TIMEOUT_PREFIX="$TIMEOUT_BIN 600"
 
 mkdir -p "$TASKS_DIR/pending" "$TASKS_DIR/done" "$TASKS_DIR/processing"
+
+# Вернуть застрявшие задачи из processing/ в pending/ (если watcher упал во время выполнения)
+cleanup_stale() {
+    for f in "$TASKS_DIR/processing"/TASK_*.md; do
+        [ -f "$f" ] || continue
+        age=$(( $(date +%s) - $(stat -f %m "$f" 2>/dev/null || echo 0) ))
+        if [ "$age" -gt 3600 ]; then
+            echo "[$(date)] Stale task returned: $(basename "$f")" >> "$LOG"
+            mv "$f" "$TASKS_DIR/pending/"
+        fi
+    done
+}
+
+# Вернуть true если задача с таким именем уже выполнена менее 5 минут назад
+is_recently_done() {
+    local task_name="$1"
+    local done_file="$TASKS_DIR/done/${task_name}.md"
+    [ -f "$done_file" ] || return 1
+    local age=$(( $(date +%s) - $(stat -f %m "$done_file" 2>/dev/null || echo 0) ))
+    [ "$age" -lt 300 ]
+}
+
+cleanup_stale
 echo "[$(date)] Watcher started (PID $$)" >> "$LOG"
 
 while true; do
     for task_file in "$TASKS_DIR/pending"/TASK_*.md; do
         [ -f "$task_file" ] || continue
         task_id=$(basename "$task_file" .md)
+
+        if is_recently_done "$task_id"; then
+            echo "[$(date)] Skip duplicate: $task_id" >> "$LOG"
+            rm "$task_file"
+            continue
+        fi
         mv "$task_file" "$TASKS_DIR/processing/${task_id}.md" 2>/dev/null || continue
         echo "[$(date)] Processing: $task_id" >> "$LOG"
         result_file="$TASKS_DIR/done/${task_id}.result"
