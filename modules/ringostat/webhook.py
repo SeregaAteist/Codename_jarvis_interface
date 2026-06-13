@@ -1,9 +1,19 @@
 """Ringostat webhook receiver — порт 7736."""
+
 from __future__ import annotations
-import json, logging, os, secrets, time
+
+import json
+import logging
+import os
+import secrets
+import time
 from collections import deque
-from fastapi import FastAPI, Request, HTTPException
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+
+load_dotenv(override=False)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -32,7 +42,11 @@ def _rate_ok() -> bool:
 async def ringostat_webhook(request: Request):
     if not _rate_ok():
         raise HTTPException(status_code=429, detail="Too Many Requests")
-    token = request.headers.get("X-Webhook-Secret") or request.query_params.get("secret") or ""
+    token = (
+        request.headers.get("X-Webhook-Secret")
+        or request.query_params.get("secret")
+        or ""
+    )
     if not WEBHOOK_SECRET or not secrets.compare_digest(token, WEBHOOK_SECRET):
         raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -43,14 +57,22 @@ async def ringostat_webhook(request: Request):
     if not phone:
         return JSONResponse({"status": "skip", "reason": "no phone"})
 
+    # ANSWERED → топик группы; всё остальное (MISSED, NO ANSWER, BUSY) → личка
+    is_urgent = data.get("disposition", "").upper() != "ANSWERED"
+
     # менеджер по SIP из ringostat.yaml (поле employee/employee_ext в payload)
     from modules.ringostat.employees import find_by_sip
+
     emp = find_by_sip(data.get("employee") or data.get("employee_ext") or "")
     manager_name = emp["name"] if emp else ""
 
     # ищем контакт и сделку в Kommo
     try:
-        from modules.kommo.client import find_contact_by_phone, find_lead_by_contact, get_lead_link
+        from modules.kommo.client import (
+            find_contact_by_phone,
+            find_lead_by_contact,
+            get_lead_link,
+        )
         from modules.ringostat.notifier import notify_call
 
         contact = await find_contact_by_phone(phone)
@@ -64,17 +86,26 @@ async def ringostat_webhook(request: Request):
                     lead_name=lead.get("name", "Сделка"),
                     lead_url=lead_url,
                     manager_name=manager_name,
+                    is_urgent=is_urgent,
                 )
             else:
-                await notify_call(phone=phone, contact_name=contact.get("name", phone),
+                await notify_call(
+                    phone=phone,
+                    contact_name=contact.get("name", phone),
                     lead_name="Сделка не найдена",
                     lead_url=f"https://{KOMMO_DOMAIN}/contacts/detail/{contact['id']}",
-                    manager_name=manager_name)
+                    manager_name=manager_name,
+                    is_urgent=is_urgent,
+                )
         else:
-            await notify_call(phone=phone, contact_name=phone,
+            await notify_call(
+                phone=phone,
+                contact_name=phone,
                 lead_name="Контакт не найден в Kommo",
                 lead_url=f"https://{KOMMO_DOMAIN}/leads/",
-                manager_name=manager_name)
+                manager_name=manager_name,
+                is_urgent=is_urgent,
+            )
     except Exception as e:
         logger.error("[webhook] ошибка: %s", e)
 
