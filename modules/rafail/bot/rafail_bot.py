@@ -38,6 +38,10 @@ PREVIEW_LEN = 500
 _LEARN_KEYWORDS = {"навчання", "курс", "матеріал", "знання", "урок", "обучение", "тема"}
 
 
+def _is_for_rafail(text: str) -> bool:
+    return text.lower().startswith(("рафаил,", "rafail,"))
+
+
 async def _notify_group(bot, text: str) -> None:
     if not RAFAIL_CHAT_ID:
         return
@@ -211,17 +215,15 @@ async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     thread_id = msg.message_thread_id if msg else None
     thread_kwargs = _reply_thread(update)
 
-    # inbox (топик 2) → проверяем ключевые слова обучения
+    # inbox (топик 2) → реагируем только на "Рафаил,"
     if thread_id == INBOX_TOPIC_ID and RAFAIL_CHAT_ID:
-        text_lower = (msg.text or "").lower()
-        if any(kw in text_lower for kw in _LEARN_KEYWORDS):
-            await update.effective_chat.send_message(
-                "📚 Рафаил берёт в работу. Открываю очередь материалов…",
-                message_thread_id=INBOX_TOPIC_ID,
-                reply_markup=main_menu(),
-            )
-            return
-        # не наша тема — игнорируем, пусть work_bot обработает
+        if not _is_for_rafail(msg.text or ""):
+            return  # молчим — не наше
+        await update.effective_chat.send_message(
+            "📚 Рафаил берёт в работу. Открываю очередь материалов…",
+            message_thread_id=INBOX_TOPIC_ID,
+            reply_markup=main_menu(),
+        )
         return
 
     awaiting = ctx.chat_data.pop("rb_await", None)

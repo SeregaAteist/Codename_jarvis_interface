@@ -23,6 +23,9 @@ _PREFIX_MAP: list[tuple[tuple[str, ...], str]] = [
     (("джарвис,", "jarvis,"), "jarvis"),
 ]
 
+# Префиксы других ботов — inbox_dispatcher их игнорирует
+_OTHER_AGENT_PREFIXES = ("рафаил,", "rafail,", "аниме,", "anime,")
+
 
 def _parse_prefix(text: str) -> tuple[str, str]:
     """Возвращает (agent, task_text). agent='general' если нет префикса."""
@@ -32,6 +35,16 @@ def _parse_prefix(text: str) -> tuple[str, str]:
             if low.startswith(p):
                 return agent, text[len(p) :].strip()
     return "general", text
+
+
+def _is_for_jarvis(text: str) -> bool:
+    """True если сообщение адресовано Джарвису или без префикса (общая задача)."""
+    text_lower = text.lower()
+    if text_lower.startswith(("джарвис,", "jarvis,")):
+        return True
+    if any(text_lower.startswith(p) for p in _OTHER_AGENT_PREFIXES):
+        return False
+    return True  # без префикса — для Джарвиса
 
 
 def _create_task_file(agent: str, task_text: str) -> Path:
@@ -62,6 +75,9 @@ async def dispatch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     text = msg.text or ""
+    if not _is_for_jarvis(text):
+        return  # сообщение для другого бота — молчим
+
     logger.info("[inbox] сообщение: %s", text[:100])
 
     agent, task_text = _parse_prefix(text)
