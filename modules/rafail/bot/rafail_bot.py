@@ -326,6 +326,77 @@ async def handle_free_question(
         await update.message.reply_text(f"❌ Помилка: {e}")
 
 
+async def handle_find_manual(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Найти мануал по запросу."""
+    from modules.rafail.researchers.web_researcher import WebResearcher
+    from shared.llm.router import get_router
+
+    researcher = WebResearcher()
+    text = update.message.text or ""
+    router = get_router()
+    extracted = await router.generate(
+        "filter",
+        f"Витягни бренд і модель обладнання з тексту. Формат: BRAND|MODEL\nТекст: {text}",
+    )
+
+    if "|" in extracted:
+        brand, model = extracted.strip().split("|", 1)
+        await update.message.reply_text(
+            f"Шукаю мануал {brand.strip()} {model.strip()}..."
+        )
+        pdf_url = await researcher.get_pdf_url(brand.strip(), model.strip())
+        if pdf_url:
+            await update.message.reply_text(f"Знайдено мануал:\n{pdf_url}")
+        else:
+            results = await researcher.search_manual(brand.strip(), model.strip())
+            if results:
+                links = "\n".join(f"• {r.url}" for r in results[:3])
+                await update.message.reply_text(f"Результати пошуку:\n{links}")
+            else:
+                await update.message.reply_text("Мануал не знайдено")
+    else:
+        await update.message.reply_text(
+            "Вкажіть бренд та модель, наприклад: 'знайди мануал Deye SUN-10K'"
+        )
+
+
+async def handle_parse_price(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Парсинг прайс-листа (файл или URL)."""
+    from modules.rafail.researchers.price_parser import PriceParser
+
+    parser = PriceParser()
+    msg = update.message
+
+    # файл вложенный в следующем сообщении — пока инструкция
+    if msg.document:
+        import tempfile
+        from pathlib import Path
+
+        file = await context.bot.get_file(msg.document.file_id)
+        suffix = Path(msg.document.file_name or "price.xlsx").suffix or ".xlsx"
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+            await file.download_to_memory(f)
+            tmp = Path(f.name)
+        await msg.reply_text("Парсю прайс...")
+        items = await parser.parse_excel(tmp)
+        tmp.unlink(missing_ok=True)
+        cards = parser.to_equipment_cards(items)
+        await msg.reply_text(
+            f"Знайдено позицій: {len(items)}, розпізнано обладнання: {len(cards)}\n"
+            + "\n".join(
+                f"• {c.brand} {c.model} — {c.price_current} UAH" for c in cards[:10]
+            )
+        )
+    else:
+        await msg.reply_text(
+            "Надішліть Excel-файл прайсу як документ, або вкажіть URL: 'прайс https://...'"
+        )
+
+
 async def handle_knowledge_topic(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE, text_override: str | None = None
 ) -> None:
@@ -333,6 +404,16 @@ async def handle_knowledge_topic(
     lower = text.lower()
 
     if await _handle_profile_command(text, update, ctx):
+        return
+
+    if any(
+        w in lower for w in ("знайди мануал", "найди мануал", "manual", "інструкція")
+    ):
+        await handle_find_manual(update, ctx)
+        return
+
+    if any(w in lower for w in ("прайс", "price", "ціна", "цена")):
+        await handle_parse_price(update, ctx)
         return
 
     if any(w in lower for w in ("pending", "очередь", "ожидают")):
