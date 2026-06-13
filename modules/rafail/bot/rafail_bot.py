@@ -18,6 +18,8 @@ from telegram.ext import (
     ContextTypes, MessageHandler, filters,
 )
 
+import os
+
 from modules.rafail import knowledge_base as kb
 from shared.config.secrets import opt
 
@@ -26,7 +28,10 @@ logger = logging.getLogger(__name__)
 OWNER_ID = int(opt("OWNER_USER_ID") or 374728252)
 RAFAIL_CHAT_ID = int(opt("RAFAIL_CHAT_ID") or 0)
 RAFAIL_TOPIC_ID = int(opt("RAFAIL_TOPIC_ID") or 0)
+INBOX_TOPIC_ID = int(os.getenv("INBOX_TOPIC_ID") or 2)
 PREVIEW_LEN = 500
+
+_LEARN_KEYWORDS = {"навчання", "курс", "матеріал", "знання", "урок", "обучение", "тема"}
 
 
 async def _notify_group(bot, text: str) -> None:
@@ -39,6 +44,14 @@ async def _notify_group(bot, text: str) -> None:
         await bot.send_message(**kwargs)
     except Exception as e:
         logger.warning("[rafail-bot] group notify failed: %s", e)
+
+
+def _reply_thread(update: Update) -> dict:
+    """Возвращает message_thread_id если сообщение пришло из топика группы."""
+    msg = update.message
+    if msg and msg.message_thread_id and update.effective_chat.id == RAFAIL_CHAT_ID:
+        return {"message_thread_id": msg.message_thread_id}
+    return {}
 
 
 def _matrix() -> dict[str, list]:
@@ -131,20 +144,43 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             f"Управление: перейдите в топик 205 (chat {RAFAIL_CHAT_ID})."
         )
         return
-    await update.message.reply_text("📚 Рафаил на связи.", reply_markup=main_menu())
+    thread_kwargs = _reply_thread(update)
+    await update.effective_chat.send_message(
+        "📚 Рафаил на связи.", reply_markup=main_menu(), **thread_kwargs
+    )
 
 
 async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_owner(update):
         return
+    msg = update.message
+    thread_id = msg.message_thread_id if msg else None
+    thread_kwargs = _reply_thread(update)
+
+    # inbox (топик 2) → проверяем ключевые слова обучения
+    if thread_id == INBOX_TOPIC_ID and RAFAIL_CHAT_ID:
+        text_lower = (msg.text or "").lower()
+        if any(kw in text_lower for kw in _LEARN_KEYWORDS):
+            await update.effective_chat.send_message(
+                "📚 Рафаил берёт в работу. Открываю очередь материалов…",
+                message_thread_id=INBOX_TOPIC_ID,
+                reply_markup=main_menu(),
+            )
+            return
+        # не наша тема — игнорируем, пусть work_bot обработает
+        return
+
     awaiting = ctx.chat_data.pop("rb_await", None)
     if awaiting and awaiting[0] == "reject":
-        kb.reject(awaiting[1], update.message.text.strip())
+        kb.reject(awaiting[1], msg.text.strip())
         kb.log_sync("reject", "ok", f"processed={awaiting[1]}")
-        await update.message.reply_text("❌ Отклонено, причина записана.",
-                                        reply_markup=main_menu())
+        await update.effective_chat.send_message(
+            "❌ Отклонено, причина записана.", reply_markup=main_menu(), **thread_kwargs
+        )
         return
-    await update.message.reply_text("Меню Рафаила:", reply_markup=main_menu())
+    await update.effective_chat.send_message(
+        "Меню Рафаила:", reply_markup=main_menu(), **thread_kwargs
+    )
 
 
 async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -169,16 +205,25 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         row = kb.get_processed(pid)
         section_title = row["title"] if row else f"ID {pid}"
         await q.edit_message_text("⏫ Одобрено, заливаю в Moodle…")
+        track_label = _level_label(row["track"]) if row else ""
         try:
             from modules.rafail.uploader import upload_to_moodle
             res = await upload_to_moodle(pid)
             note = (f"✅ Залито в Moodle: курс {res['course_id']}"
                     + (" (уже был)" if res.get("already") else ""))
-            group_note = f"✅ Одобрено и загружено в Moodle: <b>{section_title}</b>"
+            group_note = (
+                f"✅ Одобрено и загружено в Moodle\n"
+                f"📚 <b>{section_title}</b>\n"
+                f"🎓 Уровень: {track_label}"
+            )
         except Exception as e:
             logger.error("[rafail-bot] upload %d: %s", pid, e)
             note = f"⚠️ Одобрено, но загрузка не удалась: {e}"
-            group_note = f"⚠️ Одобрено, но загрузка не удалась: <b>{section_title}</b>"
+            group_note = (
+                f"⚠️ Одобрено, но загрузка не удалась\n"
+                f"📚 <b>{section_title}</b>\n"
+                f"🎓 Уровень: {track_label}"
+            )
         await _notify_group(ctx.bot, group_note)
         text, markup = pending_card(idx)
         await q.edit_message_text(f"{note}\n\n{text}",
