@@ -24,7 +24,21 @@ from shared.config.secrets import opt
 logger = logging.getLogger(__name__)
 
 OWNER_ID = int(opt("OWNER_USER_ID") or 374728252)
+RAFAIL_CHAT_ID = int(opt("RAFAIL_CHAT_ID") or 0)
+RAFAIL_TOPIC_ID = int(opt("RAFAIL_TOPIC_ID") or 0)
 PREVIEW_LEN = 500
+
+
+async def _notify_group(bot, text: str) -> None:
+    if not RAFAIL_CHAT_ID:
+        return
+    kwargs: dict = {"chat_id": RAFAIL_CHAT_ID, "text": text, "parse_mode": "HTML"}
+    if RAFAIL_TOPIC_ID:
+        kwargs["message_thread_id"] = RAFAIL_TOPIC_ID
+    try:
+        await bot.send_message(**kwargs)
+    except Exception as e:
+        logger.warning("[rafail-bot] group notify failed: %s", e)
 
 
 def _matrix() -> dict[str, list]:
@@ -111,6 +125,12 @@ def _is_owner(update: Update) -> bool:
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_owner(update):
         return
+    if update.effective_chat.type == "private" and RAFAIL_CHAT_ID:
+        await update.message.reply_text(
+            f"📚 Рафаил работает в группе.\n"
+            f"Управление: перейдите в топик 205 (chat {RAFAIL_CHAT_ID})."
+        )
+        return
     await update.message.reply_text("📚 Рафаил на связи.", reply_markup=main_menu())
 
 
@@ -146,15 +166,20 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     elif action == "ok":
         pid, idx = int(parts[2]), int(parts[3])
         kb.approve(pid)
+        row = kb.get_processed(pid)
+        section_title = row["title"] if row else f"ID {pid}"
         await q.edit_message_text("⏫ Одобрено, заливаю в Moodle…")
         try:
             from modules.rafail.uploader import upload_to_moodle
             res = await upload_to_moodle(pid)
             note = (f"✅ Залито в Moodle: курс {res['course_id']}"
                     + (" (уже был)" if res.get("already") else ""))
+            group_note = f"✅ Одобрено и загружено в Moodle: <b>{section_title}</b>"
         except Exception as e:
             logger.error("[rafail-bot] upload %d: %s", pid, e)
             note = f"⚠️ Одобрено, но загрузка не удалась: {e}"
+            group_note = f"⚠️ Одобрено, но загрузка не удалась: <b>{section_title}</b>"
+        await _notify_group(ctx.bot, group_note)
         text, markup = pending_card(idx)
         await q.edit_message_text(f"{note}\n\n{text}",
                                   reply_markup=markup or main_menu(),

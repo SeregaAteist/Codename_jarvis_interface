@@ -30,7 +30,7 @@ while true; do
         echo "[$(date)] Processing: $task_id" >> "$LOG"
         result_file="$TASKS_DIR/done/${task_id}.result"
         cd "$HOME/Projects/jarvis" && \
-        $TIMEOUT_PREFIX "$CLAUDE" --model claude-fable-5 --dangerously-skip-permissions --print \
+        $TIMEOUT_PREFIX "$CLAUDE" --model claude-sonnet-4-6 --dangerously-skip-permissions --print \
             --output-format text \
             "$(cat "$TASKS_DIR/processing/${task_id}.md")" > "$result_file.tmp" 2>&1
         mv "$result_file.tmp" "$result_file"
