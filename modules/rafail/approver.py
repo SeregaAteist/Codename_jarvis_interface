@@ -9,18 +9,20 @@
 Декаплед от Telegram: send_func инжектируется (бот подключит в RF-12).
 Решения закрывают Future через resolve(); таймаут 24 ч → отмена.
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import uuid
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from modules.rafail import knowledge_base as kb
 
 logger = logging.getLogger(__name__)
 
-OWNER_ID = 374728252
+OWNER_ID = int(os.getenv("OWNER_USER_ID", "374728252"))
 APPROVE_TIMEOUT = 24 * 3600  # 24 часа по ТЗ
 
 # send_func(message: str, key: str, processed_id: int) — публикация плана с кнопками
@@ -68,8 +70,12 @@ class RafailApprover:
         self._pending: dict[str, asyncio.Future] = {}
         self._processed_ids: dict[str, int] = {}
 
-    async def submit(self, processed_id: int, sources_count: int = 1,
-                     timeout: float = APPROVE_TIMEOUT) -> str:
+    async def submit(
+        self,
+        processed_id: int,
+        sources_count: int = 1,
+        timeout: float = APPROVE_TIMEOUT,
+    ) -> str:
         """Отправить материал на одобрение. Возвращает финальный статус:
         approved / rejected / timeout."""
         processed = kb.get_processed(processed_id)
