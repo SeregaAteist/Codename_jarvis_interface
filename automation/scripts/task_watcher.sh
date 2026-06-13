@@ -36,6 +36,37 @@ while true; do
         mv "$result_file.tmp" "$result_file"
         mv "$TASKS_DIR/processing/${task_id}.md" "$TASKS_DIR/done/${task_id}.md"
         echo "[$(date)] Done: $task_id" >> "$LOG"
+
+        # если задача из TG — отправить результат обратно
+        DONE_TASK="$TASKS_DIR/done/${task_id}.md"
+        if grep -q "^CHAT_ID:" "$DONE_TASK" 2>/dev/null; then
+            TG_CHAT=$(grep "^CHAT_ID:" "$DONE_TASK" | awk '{print $2}')
+            TG_TOPIC=$(grep "^TOPIC_ID:" "$DONE_TASK" | awk '{print $2}')
+            TG_TOKEN=$(grep "^JARVIS_WORK_BOT_TOKEN=" "$HOME/Projects/jarvis/.env" | cut -d= -f2-)
+            [ -z "$TG_TOKEN" ] && TG_TOKEN=$(grep "^TELEGRAM_BOT_TOKEN=" "$HOME/Projects/jarvis/.env" | cut -d= -f2-)
+            /opt/homebrew/bin/python3.11 <<PYEOF 2>>"$LOG"
+import json, urllib.request
+task_id = "$task_id"
+chat_id = $TG_CHAT
+topic_id = $TG_TOPIC
+token = "$TG_TOKEN"
+try:
+    with open("$result_file") as f:
+        result = f.read(3000)
+except Exception:
+    result = "(нет результата)"
+text = f"✅ Готово: {task_id}\n\n{result}"[:4000]
+payload = json.dumps({"chat_id": chat_id, "message_thread_id": topic_id, "text": text}).encode()
+req = urllib.request.Request(
+    f"https://api.telegram.org/bot{token}/sendMessage",
+    data=payload, headers={"Content-Type": "application/json"}
+)
+try:
+    urllib.request.urlopen(req, timeout=10)
+except Exception as e:
+    print(f"[TG send error] {e}")
+PYEOF
+        fi
     done
     sleep 3
 done
