@@ -211,27 +211,97 @@ async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await on_text(update, ctx)
 
 
-async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_owner(update):
+async def _approve_all(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    rows = kb.get_pending(limit=99)
+    if not rows:
+        await update.message.reply_text("✅ Черга порожня — нічого схвалювати.")
         return
-    msg = update.message
-    thread_id = msg.message_thread_id if msg else None
-    thread_kwargs = _reply_thread(update)
+    count = 0
+    for p in rows:
+        try:
+            kb.approve(p["id"])
+            count += 1
+        except Exception as e:
+            logger.error("[rafail] approve_all id=%s: %s", p["id"], e)
+    await update.message.reply_text(f"✅ Схвалено: {count} з {len(rows)} матеріалів.")
 
-    # inbox (топик 2) → реагируем только на "Рафаил,"
-    if thread_id == INBOX_TOPIC_ID and RAFAIL_CHAT_ID:
-        if not _is_for_rafail(msg.text or ""):
-            return  # молчим — не наше
-        await update.effective_chat.send_message(
-            "📚 Рафаил берёт в работу. Открываю очередь материалов…",
-            message_thread_id=INBOX_TOPIC_ID,
+
+async def handle_free_question(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE, text: str
+) -> None:
+    from shared.llm.router import get_router
+
+    router = get_router()
+    prompt = (
+        "Ти — Рафаіл, куратор бази знань LK Energy Group.\n"
+        "Відповідай коротко і по суті українською мовою.\n"
+        "Якщо питання про навчальні матеріали — відповідай як експерт з СЕС та продажів.\n\n"
+        f"Питання: {text}"
+    )
+    try:
+        answer = await router.generate("quality", prompt)
+        await update.message.reply_text(answer[:4000])
+    except Exception as e:
+        logger.error("[rafail] free_question: %s", e)
+        await update.message.reply_text(f"❌ Помилка: {e}")
+
+
+async def handle_knowledge_topic(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE, text_override: str | None = None
+) -> None:
+    text = (text_override or update.message.text or "").strip()
+    lower = text.lower()
+
+    if any(w in lower for w in ("pending", "очередь", "ожидают")):
+        text_out, markup = pending_card(0)
+        await update.message.reply_text(
+            text_out, reply_markup=markup or main_menu(), parse_mode="HTML"
+        )
+        return
+
+    if any(w in lower for w in ("статистика", "stats")):
+        s = kb.get_stats()
+        await update.message.reply_text(
+            "📊 Статистика Рафаила:\n" + "\n".join(f"• {k}: {v}" for k, v in s.items()),
             reply_markup=main_menu(),
         )
         return
 
-    await update.effective_chat.send_message(
-        "Меню Рафаила:", reply_markup=main_menu(), **thread_kwargs
-    )
+    if any(w in lower for w in ("одобри все", "approve all")):
+        await _approve_all(update, ctx)
+        return
+
+    if any(w in lower for w in ("меню", "menu", "старт")):
+        thread_kwargs = _reply_thread(update)
+        await update.effective_chat.send_message(
+            "Меню Рафаила:", reply_markup=main_menu(), **thread_kwargs
+        )
+        return
+
+    await handle_free_question(update, ctx, text)
+
+
+async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not _is_owner(update):
+        return
+    msg = update.message
+    if not msg:
+        return
+    thread_id = msg.message_thread_id
+
+    if thread_id == RAFAIL_TOPIC_ID and RAFAIL_CHAT_ID:
+        await handle_knowledge_topic(update, ctx)
+        return
+
+    if thread_id == INBOX_TOPIC_ID and RAFAIL_CHAT_ID:
+        text = msg.text or ""
+        if not _is_for_rafail(text):
+            return
+        task_text = text[text.index(",") + 1 :].strip()
+        await handle_knowledge_topic(update, ctx, text_override=task_text)
+        return
+
+    # другие топики — молчим
 
 
 async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:

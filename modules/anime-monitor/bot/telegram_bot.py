@@ -25,6 +25,8 @@ if _JARVIS_ROOT not in sys.path:
 
 logger = logging.getLogger("bot")
 
+INBOX_TOPIC_ID = int(os.getenv("INBOX_TOPIC_ID", "2"))
+
 STATUS_LABELS = {
     "watching": "смотрю",
     "completed": "просмотрено",
@@ -59,7 +61,8 @@ def _is_allowed(update: Update) -> bool:
     if msg.chat.type == "private":
         return True
     return (
-        str(msg.chat_id) == cfg.GROUP_CHAT_ID and msg.message_thread_id == cfg.THREAD_ID
+        str(msg.chat_id) == cfg.GROUP_CHAT_ID
+        and msg.message_thread_id == cfg.ANIME_TOPIC_ID
     )
 
 
@@ -108,12 +111,31 @@ async def _build_answer(text: str) -> str:
 
 
 async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _is_allowed(update):
-        return
     msg = update.message
+    if not msg or not msg.from_user:
+        return
+    if cfg.OWNER_USER_ID and msg.from_user.id != cfg.OWNER_USER_ID:
+        return
+
+    thread_id = msg.message_thread_id or 0
+    text = (msg.text or "").strip()
+
+    if msg.chat.type == "private":
+        pass
+    elif cfg.ANIME_TOPIC_ID and thread_id == cfg.ANIME_TOPIC_ID:
+        pass
+    elif thread_id == INBOX_TOPIC_ID:
+        lower = text.lower()
+        if lower.startswith(("аниме,", "anime,")):
+            text = text[text.index(",") + 1 :].strip()
+        else:
+            return
+    else:
+        return
+
     thinking = await msg.reply_text("🔍 Думаю...")
     try:
-        answer = await _build_answer(msg.text.strip())
+        answer = await _build_answer(text)
         await thinking.edit_text(answer)
     except Exception as e:
         logger.error("handle_text error: %s", e)
@@ -121,9 +143,21 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_voice(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not _is_allowed(update):
-        return
     msg = update.message
+    if not msg or not msg.from_user:
+        return
+    if cfg.OWNER_USER_ID and msg.from_user.id != cfg.OWNER_USER_ID:
+        return
+
+    thread_id = msg.message_thread_id or 0
+
+    if msg.chat.type == "private":
+        pass
+    elif cfg.ANIME_TOPIC_ID and thread_id == cfg.ANIME_TOPIC_ID:
+        pass
+    else:
+        return
+
     thinking = await msg.reply_text("🎙 Слушаю...")
     try:
         from modules.bots.voice_handler import transcribe_voice
