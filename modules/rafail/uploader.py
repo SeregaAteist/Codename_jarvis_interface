@@ -1,9 +1,10 @@
-"""Uploader — выгрузка одобренного контента в Moodle (RF-8).
+"""Uploader — выгрузка одобренного контента в Moodle (RF-8) + хук скриптів.
 
 Стратегия: НЕ трогаем существующие курсы — Рафаил строит собственную
 структуру (категория «Рафаил — {dept} — {level}» + курс), и контент
 льётся туда. ID созданных объектов — в sync_log/настройках.
 """
+
 from __future__ import annotations
 
 import json
@@ -15,8 +16,9 @@ from modules.rafail.connectors.moodle import MoodleConnector
 logger = logging.getLogger(__name__)
 
 
-async def create_course_structure(dept: str, level: str,
-                                  moodle: MoodleConnector | None = None) -> dict:
+async def create_course_structure(
+    dept: str, level: str, moodle: MoodleConnector | None = None
+) -> dict:
     """Создать категорию + курс в Moodle для нового трека (идемпотентно).
 
     Повторный вызов с теми же dept/level вернёт существующие ID из settings.
@@ -43,17 +45,25 @@ async def create_course_structure(dept: str, level: str,
         description=f"Автоматически создан Рафаилом. Трек: {dept}, Уровень: {level}",
     )
 
-    result = {"category": {"id": cat["id"], "name": cat_name},
-              "course": {"id": course.get("id"), "shortname": course.get("shortname")}}
+    result = {
+        "category": {"id": cat["id"], "name": cat_name},
+        "course": {"id": course.get("id"), "shortname": course.get("shortname")},
+    }
     kb.set_setting(key, json.dumps(result, ensure_ascii=False))
     kb.log_sync("create_structure", "ok", f"{dept}/{level} → course={course.get('id')}")
-    logger.info("[uploader] структура %s/%s: категория %s, курс %s",
-                dept, level, cat["id"], course.get("id"))
+    logger.info(
+        "[uploader] структура %s/%s: категория %s, курс %s",
+        dept,
+        level,
+        cat["id"],
+        course.get("id"),
+    )
     return result
 
 
-async def upload_to_moodle(processed_id: int,
-                           moodle: MoodleConnector | None = None) -> dict:
+async def upload_to_moodle(
+    processed_id: int, moodle: MoodleConnector | None = None
+) -> dict:
     """RF-9: одобренная секция → Moodle (идемпотентно по moodle_map).
 
     У токена нет WS-функции создания page activity (в ядре Moodle её нет),
@@ -86,6 +96,35 @@ async def upload_to_moodle(processed_id: int,
     kb.map_moodle(processed_id, moodle_course_id=course_id)
     kb.mark_uploaded(processed_id)
     kb.log_sync("upload", "ok", f"processed={processed_id} → course={course_id}")
-    logger.info("[uploader] processed=%d залит: курс %d (категория %d)",
-                processed_id, course_id, cat_id)
+    logger.info(
+        "[uploader] processed=%d залит: курс %d (категория %d)",
+        processed_id,
+        course_id,
+        cat_id,
+    )
     return {"course_id": course_id, "category_id": cat_id, "already": False}
+
+
+async def on_content_approved(processed_id: int) -> None:
+    """Тригер після одобрення контенту — сканувати на скрипти продажів."""
+    from modules.rafail.core.profile_manager import get_profile_manager
+    from modules.rafail.researchers.script_extractor import ScriptExtractor
+
+    proc = kb.get_processed(processed_id)
+    if not proc:
+        return
+
+    if proc.get("track") not in ("sales", "all", None):
+        return
+
+    profile = get_profile_manager().active
+    scripts_dir = profile.equipment_dir.parent / "scripts"
+
+    extractor = ScriptExtractor(scripts_dir)
+    updated = await extractor.scan(
+        content=proc.get("content", ""),
+        source=f"БЗ: {proc.get('title', '')} [{processed_id}]",
+    )
+
+    if updated:
+        logger.info("[uploader] оновлено скрипти: %s", updated)

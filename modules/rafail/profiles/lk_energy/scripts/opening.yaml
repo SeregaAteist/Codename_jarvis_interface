@@ -1,0 +1,14 @@
+key: opening
+category: stage
+title: "Відкриття розмови"
+segment: all
+updated_at: ""
+variants:
+  - id: 1
+    text: "Добрий день, мене звати [ім'я], компанія LK Energy. Ви залишили заявку на розрахунок сонячної станції. Маєте пару хвилин щоб обговорити ваш об'єкт?"
+    source: "початковий скрипт LK Energy"
+    source_date: "2026-06-14"
+    tested: 0
+    converted: 0
+    status: active
+    notes: ""

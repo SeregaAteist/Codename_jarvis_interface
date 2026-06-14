@@ -1,0 +1,14 @@
+key: objection_competitor
+category: objection
+title: "Заперечення: є пропозиція від конкурента"
+segment: all
+updated_at: ""
+variants:
+  - id: 1
+    text: "Чудово, що ви порівнюєте. Можете показати їх КП? Я поясню що входить в нашу пропозицію і чим ми відрізняємось — часто різниця в гарантії, якості монтажу і сервісі після встановлення."
+    source: "початковий скрипт LK Energy"
+    source_date: "2026-06-14"
+    tested: 0
+    converted: 0
+    status: active
+    notes: ""

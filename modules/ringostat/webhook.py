@@ -197,11 +197,36 @@ class RingostatWebhookHandler:
 
             downloader.cleanup(event.call_id)
 
+            if result.objections:
+                await self._update_script_registry(result, event)
+
             if result.objections and result.script_effectiveness in ("low", "medium"):
                 await self._signal_rafail(result)
 
         except Exception as e:
             logger.error("[webhook] ошибка обработки аудио %s: %s", event.call_id, e)
+
+    async def _update_script_registry(self, result: object, event: object) -> None:
+        """Оновити реєстр скриптів на основі результату дзвінка."""
+        try:
+            from modules.rafail.core.profile_manager import get_profile_manager
+            from modules.rafail.researchers.script_analyzer import ScriptAnalyzer
+
+            profile = get_profile_manager().active
+            scripts_dir = profile.equipment_dir.parent / "scripts"
+            analyzer = ScriptAnalyzer(scripts_dir)
+
+            updated = await analyzer.process_call_result(
+                objections=result.objections,
+                disposition=result.disposition,
+                script_effectiveness=result.script_effectiveness,
+                improvement_suggestions=result.improvement_suggestions,
+                source=f"дзвінок {result.call_id} | {event.caller_id}",
+            )
+            if updated:
+                logger.info("[webhook] оновлено скрипти: %s", updated)
+        except Exception as e:
+            logger.error("[webhook] _update_script_registry: %s", e)
 
     async def _signal_rafail(self, result: object) -> None:
         """Записать задачу для Рафаила — обновить скрипты по возражениям."""

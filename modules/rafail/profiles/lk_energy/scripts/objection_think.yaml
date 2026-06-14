@@ -1,0 +1,22 @@
+key: objection_think
+category: objection
+title: "Заперечення: подумаю"
+segment: all
+updated_at: ""
+variants:
+  - id: 1
+    text: "Звичайно, це серйозне рішення. Що саме вас турбує? Можливо, я можу надати додаткову інформацію або розрахунок прямо зараз?"
+    source: "початковий скрипт LK Energy"
+    source_date: "2026-06-14"
+    tested: 0
+    converted: 0
+    status: active
+    notes: ""
+  - id: 2
+    text: "Добре. Дозвольте запитати — що для вас найважливіше при прийнятті рішення? Ціна, надійність компанії, чи технічні характеристики?"
+    source: "початковий скрипт LK Energy"
+    source_date: "2026-06-14"
+    tested: 0
+    converted: 0
+    status: active
+    notes: ""

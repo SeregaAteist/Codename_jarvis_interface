@@ -397,6 +397,51 @@ async def handle_parse_price(
         )
 
 
+async def handle_scripts_query(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Відповісти на запит по скриптах продажів."""
+    from modules.rafail.registry.script_registry import ScriptRegistry
+    from shared.llm.router import get_router
+
+    profile = get_profile_manager().active
+    scripts_dir = profile.equipment_dir.parent / "scripts"
+    registry = ScriptRegistry(scripts_dir)
+    text = (update.message.text or "").lower()
+
+    if "статистик" in text:
+        entries = registry.list_entries()
+        lines = []
+        for e in entries:
+            best = e.best_variant()
+            if best:
+                lines.append(
+                    f"• {e.title}: {best.conversion_rate * 100:.0f}%"
+                    f" ({best.tested} тестів)"
+                )
+        await update.message.reply_text(
+            "📊 Статистика скриптів:\n" + "\n".join(lines) if lines else "Немає даних"
+        )
+        return
+
+    router = get_router()
+    entries = registry.list_entries(category="objection")
+    context_text = "\n\n".join(
+        f"{e.title}:\n"
+        + "\n".join(
+            f"  [{v.id}] {v.text[:100]}... (конверсія: {v.conversion_rate * 100:.0f}%)"
+            for v in e.variants[:2]
+        )
+        for e in entries
+    )
+
+    answer = await router.generate(
+        "quality",
+        f"Відповідай як експерт з продажів СЕС.\n\n"
+        f"Реєстр скриптів:\n{context_text}\n\n"
+        f"Запит: {text}",
+    )
+    await update.message.reply_text(answer[:4000])
+
+
 async def handle_knowledge_topic(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE, text_override: str | None = None
 ) -> None:
@@ -414,6 +459,10 @@ async def handle_knowledge_topic(
 
     if any(w in lower for w in ("прайс", "price", "ціна", "цена")):
         await handle_parse_price(update, ctx)
+        return
+
+    if any(w in lower for w in ("скрипт", "заперечення", "script")):
+        await handle_scripts_query(update, ctx)
         return
 
     if any(w in lower for w in ("pending", "очередь", "ожидают")):
@@ -493,12 +542,13 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await q.edit_message_text("⏫ Одобрено, заливаю в Moodle…")
         track_label = _level_label(row["track"]) if row else ""
         try:
-            from modules.rafail.uploader import upload_to_moodle
+            from modules.rafail.uploader import on_content_approved, upload_to_moodle
 
             res = await upload_to_moodle(pid)
             note = f"✅ Залито в Moodle: курс {res['course_id']}" + (
                 " (уже был)" if res.get("already") else ""
             )
+            await on_content_approved(pid)
             group_note = (
                 f"✅ Одобрено и загружено в Moodle\n"
                 f"📚 <b>{section_title}</b>\n"
