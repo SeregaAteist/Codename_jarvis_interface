@@ -40,9 +40,9 @@ async def send_work(text: str, parse_mode: str = "HTML") -> None:
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
+    from shared.logging_setup import setup_logging
+
+    setup_logging("~/Projects/jarvis/logs/work-bot.log")
     if not WORK_TOKEN:
         logger.warning("JARVIS_WORK_BOT_TOKEN не задан — выход.")
         sys.exit(0)

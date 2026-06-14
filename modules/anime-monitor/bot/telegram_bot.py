@@ -221,6 +221,12 @@ def build_app() -> Application:  # type: ignore[type-arg]
 
 
 def main() -> None:
+    import sys
+
+    sys.path.insert(0, os.path.expanduser("~/Projects/jarvis"))
+    from shared.logging_setup import setup_logging
+
+    setup_logging("~/Projects/jarvis/logs/anime-monitor.log")
     AnimeBot().run()
 
 

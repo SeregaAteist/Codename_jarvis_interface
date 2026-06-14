@@ -642,9 +642,9 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
+    from shared.logging_setup import setup_logging
+
+    setup_logging("~/Projects/jarvis/logs/rafail-bot.log")
     token = opt("RAFAIL_BOT_TOKEN")
     if not token:
         logger.warning(
