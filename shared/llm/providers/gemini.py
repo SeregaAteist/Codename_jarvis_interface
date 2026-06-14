@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from shared.errors import QuotaExhausted, classify
+from shared.errors import QuotaExhausted, classify, retry_with_backoff
 from shared.llm.key_pool import SimplePool
 
 logger = logging.getLogger(__name__)
@@ -74,3 +74,28 @@ async def generate(
         if classify(e) == "GEMINI_429":
             pool.report_quota_exceeded(key)  # заморозка до сброса квоты (анти-шторм)
         raise
+
+
+async def generate_with_retry(
+    model: str,
+    contents: Any,
+    pool: SimplePool,
+    fallback_model: str | None = None,
+    max_output_tokens: int | None = None,
+    max_attempts: int = 3,
+) -> str:
+    """Обёртка над generate() с exponential backoff для временных ошибок (503/500/NET).
+
+    429 не повторяется — ключ замораживается в пуле внутри generate().
+    """
+
+    async def _attempt() -> str:
+        return await generate(
+            model=model,
+            contents=contents,
+            pool=pool,
+            fallback_model=fallback_model,
+            max_output_tokens=max_output_tokens,
+        )
+
+    return await retry_with_backoff(_attempt, max_attempts=max_attempts)

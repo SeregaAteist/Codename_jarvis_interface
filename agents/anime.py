@@ -4,11 +4,13 @@
     async notify_func(text: str, url: str | None) -> None
 Без него check_new_episodes просто сохраняет серии и возвращает сводку.
 """
+
 from __future__ import annotations
 
 import logging
 
 from agents.base import BaseAgent
+from agents.registry import register
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,7 @@ def format_episode_notification(ep: dict) -> str:
     return "\n".join(lines)
 
 
+@register
 class AnimeAgent(BaseAgent):
     name = "anime"
     icon = "🎌"
@@ -66,7 +69,9 @@ class AnimeAgent(BaseAgent):
         if self.notify is not None:
             for ep in new:
                 try:
-                    await self.notify(format_episode_notification(ep), ep.get("url") or None)
+                    await self.notify(
+                        format_episode_notification(ep), ep.get("url") or None
+                    )
                     notified += 1
                 except Exception as e:  # noqa: BLE001
                     logger.error("[anime] уведомление: %s", e)
@@ -75,19 +80,23 @@ class AnimeAgent(BaseAgent):
 
     async def get_recommendations(self) -> str:
         """Рекомендации по жанрам (нужно ≥5 тайтлов в watchlist)."""
-        from modules.anime import watchlist as wl
         from modules.anime import recommender
+        from modules.anime import watchlist as wl
 
         total = len(wl.get_all())
         if total < 5:
-            return (f"🎯 Для рекомендаций нужно минимум 5 тайтлов в вотч-листе "
-                    f"(сейчас {total}). Добавьте ещё {5 - total}.")
+            return (
+                f"🎯 Для рекомендаций нужно минимум 5 тайтлов в вотч-листе "
+                f"(сейчас {total}). Добавьте ещё {5 - total}."
+            )
         recs = recommender.get_recommendations(limit=5)
         if not recs:
             return "🎯 Похожих тайтлов не нашлось — попробуйте после импорта каталога"
         lines = ["🎯 Рекомендации по вашим жанрам:"]
         for r in recs:
-            rating = f" ★{r['rating_animevost']:.1f}" if r.get("rating_animevost") else ""
+            rating = (
+                f" ★{r['rating_animevost']:.1f}" if r.get("rating_animevost") else ""
+            )
             lines.append(f"• {r['title_ru']}{rating}")
         return "\n".join(lines)
 
@@ -97,5 +106,7 @@ class AnimeAgent(BaseAgent):
         if not shikimori.is_available():
             return "🔄 Shikimori не подключён — добавьте SHIKIMORI_TOKEN в .env"
         result = await shikimori.sync_watchlist()
-        return (f"🔄 Синхронизация Shikimori: добавлено {result.get('added', 0)}, "
-                f"обновлено {result.get('updated', 0)}")
+        return (
+            f"🔄 Синхронизация Shikimori: добавлено {result.get('added', 0)}, "
+            f"обновлено {result.get('updated', 0)}"
+        )

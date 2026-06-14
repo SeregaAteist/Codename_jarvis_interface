@@ -11,6 +11,12 @@ select = ["E", "F", "I", "N", "W", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "modules/rafail/db/seed.py" = ["E501"]  # long prompt strings in triple-quoted literals
+"core/main.py" = ["E402", "E501"]  # sys.path.insert pattern + long f-strings
+"core/plugin_registry.py" = ["E501"]  # long docstring
+"core/reasoning.py" = ["E501"]  # long regex pattern strings
+"modules/tg-media-analyzer/db/storage.py" = ["E501"]  # long SQL strings
+"modules/tg-media-analyzer/pipeline/quick.py" = ["E501"]  # long prompt strings
+"modules/tg-media-analyzer/analyzers/url_downloader.py" = ["E741", "F841"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

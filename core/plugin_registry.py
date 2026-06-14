@@ -1,11 +1,14 @@
 """Plugin architecture for Jarvis — register, discover, and dispatch plugins."""
+
 from __future__ import annotations
+
 import importlib.util
 import os
 import threading
-from typing import Callable
+from collections.abc import Callable
 
 from core.config_paths import PLUGINS_DIR as _PLUGINS_DIR_PATH
+
 _PLUGINS_DIR = str(_PLUGINS_DIR_PATH)
 os.makedirs(_PLUGINS_DIR, exist_ok=True)
 
@@ -13,29 +16,29 @@ os.makedirs(_PLUGINS_DIR, exist_ok=True)
 class Plugin:
     def __init__(
         self,
-        name:        str,
+        name: str,
         description: str,
-        triggers:    list[str],
-        handler:     Callable[[str], str],
-        version:     str = "1.0",
-        author:      str = "system",
+        triggers: list[str],
+        handler: Callable[[str], str],
+        version: str = "1.0",
+        author: str = "system",
     ):
-        self.name        = name
+        self.name = name
         self.description = description
-        self.triggers    = [t.lower() for t in triggers]
-        self.handler     = handler
-        self.version     = version
-        self.author      = author
-        self.enabled     = True
+        self.triggers = [t.lower() for t in triggers]
+        self.handler = handler
+        self.version = version
+        self.author = author
+        self.enabled = True
 
     def to_dict(self) -> dict:
         return {
-            "name":        self.name,
+            "name": self.name,
             "description": self.description,
-            "triggers":    self.triggers,
-            "enabled":     self.enabled,
-            "version":     self.version,
-            "author":      self.author,
+            "triggers": self.triggers,
+            "enabled": self.enabled,
+            "version": self.version,
+            "author": self.author,
         }
 
 
@@ -106,19 +109,19 @@ class PluginManager:
             # Use os.sep suffix to prevent prefix-collision attacks
             # (e.g. /plugins2/evil.py matching /plugins prefix).
             real_path = os.path.realpath(path)
-            real_dir  = os.path.realpath(_PLUGINS_DIR)
+            real_dir = os.path.realpath(_PLUGINS_DIR)
             if not real_path.startswith(real_dir + os.sep):
                 raise ValueError("Path traversal attempt blocked.")
             if not real_path.endswith(".py"):
                 raise ValueError("Only .py files allowed.")
 
-            spec   = importlib.util.spec_from_file_location("_jarvis_plugin", real_path)
+            spec = importlib.util.spec_from_file_location("_jarvis_plugin", real_path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
-            meta    = getattr(module, "PLUGIN_META", {})
+            meta = getattr(module, "PLUGIN_META", {})
             handler = getattr(module, "handler", None)
-            setup   = getattr(module, "setup", None)
+            setup = getattr(module, "setup", None)
 
             if not callable(handler):
                 raise ValueError("Plugin missing handler() function.")
@@ -127,12 +130,12 @@ class PluginManager:
                 raise ValueError("Plugin setup() returned False.")
 
             plugin = Plugin(
-                name        = meta.get("name",        os.path.basename(path)[:-3]),
-                description = meta.get("description", ""),
-                triggers    = meta.get("triggers",    []),
-                handler     = handler,
-                version     = meta.get("version",     "1.0"),
-                author      = meta.get("author",      "external"),
+                name=meta.get("name", os.path.basename(path)[:-3]),
+                description=meta.get("description", ""),
+                triggers=meta.get("triggers", []),
+                handler=handler,
+                version=meta.get("version", "1.0"),
+                author=meta.get("author", "external"),
             )
             self.register(plugin)
             return plugin
@@ -144,7 +147,11 @@ class PluginManager:
         """Scan the plugins dir and load all .py files (except template.py)."""
         count = 0
         for fname in os.listdir(_PLUGINS_DIR):
-            if fname.endswith(".py") and fname != "template.py" and not fname.startswith("_"):
+            if (
+                fname.endswith(".py")
+                and fname != "template.py"
+                and not fname.startswith("_")
+            ):
                 plugin = self.load_from_file(os.path.join(_PLUGINS_DIR, fname))
                 if plugin:
                     count += 1
@@ -157,35 +164,66 @@ plugin_manager = PluginManager()
 
 
 def _register_builtins():
-    from agents.browser import smart_search, get_price
-    from agents.mac_control import open_app, set_volume
+    from agents.browser import get_price, smart_search
+    from agents.mac_control import open_app
 
-    plugin_manager.register(Plugin(
-        name        = "browser_search",
-        description = "Поиск в интернете через DuckDuckGo",
-        triggers    = ["найди", "поищи", "что такое", "кто такой", "когда был", "нагугли", "погугли"],
-        handler     = lambda text: smart_search(
-            __import__("re").sub(r"\b(найди|поищи|что такое|кто такой|нагугли|погугли)\s*", "", text, flags=__import__("re").I).strip()
-        ),
-    ))
+    plugin_manager.register(
+        Plugin(
+            name="browser_search",
+            description="Поиск в интернете через DuckDuckGo",
+            triggers=[
+                "найди",
+                "поищи",
+                "что такое",
+                "кто такой",
+                "когда был",
+                "нагугли",
+                "погугли",
+            ],
+            handler=lambda text: smart_search(
+                __import__("re")
+                .sub(
+                    r"\b(найди|поищи|что такое|кто такой|нагугли|погугли)\s*",
+                    "",
+                    text,
+                    flags=__import__("re").I,
+                )
+                .strip()
+            ),
+        )
+    )
 
-    plugin_manager.register(Plugin(
-        name        = "price_check",
-        description = "Проверка цен на товары",
-        triggers    = ["цена", "сколько стоит", "стоимость", "почём"],
-        handler     = lambda text: get_price(
-            __import__("re").sub(r"\b(цена|сколько стоит|стоимость|почём)\s*", "", text, flags=__import__("re").I).strip()
-        ),
-    ))
+    plugin_manager.register(
+        Plugin(
+            name="price_check",
+            description="Проверка цен на товары",
+            triggers=["цена", "сколько стоит", "стоимость", "почём"],
+            handler=lambda text: get_price(
+                __import__("re")
+                .sub(
+                    r"\b(цена|сколько стоит|стоимость|почём)\s*",
+                    "",
+                    text,
+                    flags=__import__("re").I,
+                )
+                .strip()
+            ),
+        )
+    )
 
-    plugin_manager.register(Plugin(
-        name        = "mac_control",
-        description = "Управление macOS — открытие приложений",
-        triggers    = ["открой", "запусти"],
-        handler     = lambda text: open_app(
-            __import__("re").sub(r"\b(открой|запусти)\s*", "", text, flags=__import__("re").I).strip().title()
-        ),
-    ))
+    plugin_manager.register(
+        Plugin(
+            name="mac_control",
+            description="Управление macOS — открытие приложений",
+            triggers=["открой", "запусти"],
+            handler=lambda text: open_app(
+                __import__("re")
+                .sub(r"\b(открой|запусти)\s*", "", text, flags=__import__("re").I)
+                .strip()
+                .title()
+            ),
+        )
+    )
 
 
 _register_builtins()

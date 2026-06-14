@@ -116,6 +116,70 @@ class KommoClient:
                 json=[{"note_type": "common", "params": {"text": text}}],
             )
 
+    async def get_leads(
+        self,
+        limit: int = 50,
+        page: int = 1,
+        status_id: int | None = None,
+    ) -> list[KommoLead]:
+        params: dict[str, Any] = {"limit": limit, "page": page}
+        if status_id is not None:
+            params["filter[statuses][0][status_id]"] = status_id
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{self._base}/leads", headers=self._headers, params=params)
+            r.raise_for_status()
+            data: dict[str, Any] = r.json()
+        leads = data.get("_embedded", {}).get("leads", [])
+        return [
+            KommoLead(**{k: lead[k] for k in KommoLead.model_fields if k in lead})
+            for lead in leads
+        ]
+
+    async def get_users(self) -> list[dict[str, Any]]:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{self._base}/users", headers=self._headers)
+            r.raise_for_status()
+            return r.json().get("_embedded", {}).get("users", [])
+
+    async def get_pipelines(self) -> list[dict[str, Any]]:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{self._base}/leads/pipelines", headers=self._headers)
+            r.raise_for_status()
+            return r.json().get("_embedded", {}).get("pipelines", [])
+
+    async def search_leads(self, query: str, limit: int = 10) -> list[KommoLead]:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(
+                f"{self._base}/leads",
+                headers=self._headers,
+                params={"query": query, "limit": limit},
+            )
+            r.raise_for_status()
+            data: dict[str, Any] = r.json()
+        leads = data.get("_embedded", {}).get("leads", [])
+        return [
+            KommoLead(**{k: lead[k] for k in KommoLead.model_fields if k in lead})
+            for lead in leads
+        ]
+
+    async def get_stale_leads(
+        self, days_inactive: int = 7, limit: int = 50
+    ) -> list[KommoLead]:
+        cutoff = int((datetime.now() - timedelta(days=days_inactive)).timestamp())
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(
+                f"{self._base}/leads",
+                headers=self._headers,
+                params={"limit": limit, "filter[updated_at][to]": cutoff},
+            )
+            r.raise_for_status()
+            data: dict[str, Any] = r.json()
+        leads = data.get("_embedded", {}).get("leads", [])
+        return [
+            KommoLead(**{k: lead[k] for k in KommoLead.model_fields if k in lead})
+            for lead in leads
+        ]
+
     def get_lead_url(self, lead_id: int) -> str:
         return f"https://{self._domain}/leads/detail/{lead_id}"
 

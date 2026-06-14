@@ -1,10 +1,16 @@
 """Quick analysis — через единый LLM-роутер (роль quick_analysis → gemini)."""
+
 from __future__ import annotations
+
 import logging
 from pathlib import Path
 
 from shared.llm import router
-from shared.llm.router import gemini_pool as _gemini_pool  # back-compat: handlers/video берут пул отсюда
+from shared.llm.router import (
+    gemini_pool as _gemini_pool,
+)  # re-export: handlers/video import this
+
+__all__ = ["_gemini_pool", "QUICK_PROMPT", "quick_analyze"]
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +27,19 @@ QUICK_PROMPT = """Ты технический аналитик проекта JA
 Отвечай на русском. Только техническая ценность. Без воды."""
 
 
-async def quick_analyze(image_paths: list[Path], transcripts: list[str],
-                        *, on_progress=None, deadline_ts=None) -> str:
+async def quick_analyze(
+    image_paths: list[Path],
+    transcripts: list[str],
+    *,
+    on_progress=None,
+    deadline_ts=None,
+) -> str:
     parts: list = []
     for img_path in image_paths[:8]:
         if img_path.exists():
             try:
                 import PIL.Image
+
                 parts.append(PIL.Image.open(img_path))
             except Exception:
                 pass
@@ -35,9 +47,11 @@ async def quick_analyze(image_paths: list[Path], transcripts: list[str],
         parts.append("Транскрипция/текст из видео:\n" + "\n---\n".join(transcripts))
     parts.append(QUICK_PROMPT)
     try:
-        return await router.generate("quick_analysis", parts,
-                                     on_progress=on_progress, deadline_ts=deadline_ts)
+        return await router.generate(
+            "quick_analysis", parts, on_progress=on_progress, deadline_ts=deadline_ts
+        )
     except Exception as e:
         from shared.errors import classify, message_for
+
         logger.error("[QuickPipeline] code=%s detail=%s", classify(e), e)
         return message_for(e)  # короткое сообщение из карты, без сырого JSON

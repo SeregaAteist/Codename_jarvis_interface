@@ -16,6 +16,7 @@ restart/watch --auto) — только явными флагами. Анти-д�
   python3 infra/process_manager.py restart <name>      # рестарт управляемого сервиса
   python3 infra/process_manager.py enforce             # убрать дубли управляемых
 """
+
 from __future__ import annotations
 
 import argparse
@@ -25,7 +26,7 @@ import socket
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(os.getenv("JARVIS_ROOT", Path.home() / "Projects" / "jarvis"))
@@ -35,24 +36,37 @@ LOCK = ROOT / "data" / "process_manager.pid"
 @dataclass
 class Service:
     name: str
-    managed: bool                       # False = под launchd (только мониторинг)
-    port: int | None = None             # проверка живости по TCP-порту
-    launchd_label: str | None = None    # проверка через launchctl
-    pattern: str | None = None          # pgrep -f для PID/анти-дубля
+    managed: bool  # False = под launchd (только мониторинг)
+    port: int | None = None  # проверка живости по TCP-порту
+    launchd_label: str | None = None  # проверка через launchctl
+    pattern: str | None = None  # pgrep -f для PID/анти-дубля
     start_cmd: list[str] | None = None  # команда старта (только managed)
 
 
 SERVICES: list[Service] = [
     # --- под launchd: ТОЛЬКО мониторинг ---
-    Service("telegram-bot", managed=False, launchd_label="com.jarvis.tg-media-analyzer",
-            pattern="tg-media-analyzer/main.py"),
-    Service("task-watcher", managed=False, launchd_label="com.jarvis.task-watcher",
-            pattern="task_watcher.sh"),
+    Service(
+        "telegram-bot",
+        managed=False,
+        launchd_label="com.jarvis.tg-media-analyzer",
+        pattern="tg-media-analyzer/main.py",
+    ),
+    Service(
+        "task-watcher",
+        managed=False,
+        launchd_label="com.jarvis.task-watcher",
+        pattern="task_watcher.sh",
+    ),
     # --- управляемые PM ---
     Service("python-api", managed=True, port=7734, pattern="backend"),
     Service("hud-electron", managed=True, port=3000, pattern="hud/.*[Ee]lectron"),
-    Service("ollama", managed=True, port=11434, pattern="ollama serve",
-            start_cmd=["ollama", "serve"]),
+    Service(
+        "ollama",
+        managed=True,
+        port=11434,
+        pattern="ollama serve",
+        start_cmd=["ollama", "serve"],
+    ),
     Service("n8n", managed=True, port=5678, pattern="n8n"),
 ]
 
@@ -67,7 +81,9 @@ def _pids(pattern: str) -> list[int]:
     if not pattern:
         return []
     try:
-        out = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True).stdout
+        out = subprocess.run(
+            ["pgrep", "-f", pattern], capture_output=True, text=True
+        ).stdout
         return [int(x) for x in out.split()]
     except Exception:
         return []
@@ -75,7 +91,9 @@ def _pids(pattern: str) -> list[int]:
 
 def _launchd_pid(label: str) -> int | None:
     try:
-        out = subprocess.run(["launchctl", "list"], capture_output=True, text=True).stdout
+        out = subprocess.run(
+            ["launchctl", "list"], capture_output=True, text=True
+        ).stdout
         for line in out.splitlines():
             parts = line.split()
             if len(parts) >= 3 and parts[-1] == label:
@@ -89,22 +107,32 @@ def check(svc: Service) -> dict:
     """Состояние сервиса: up, pids, detail."""
     if svc.launchd_label:
         pid = _launchd_pid(svc.launchd_label)
-        return {"up": pid is not None, "pids": [pid] if pid else [], "detail": "launchd"}
+        return {
+            "up": pid is not None,
+            "pids": [pid] if pid else [],
+            "detail": "launchd",
+        }
     up = _port_open(svc.port) if svc.port else bool(_pids(svc.pattern or ""))
-    return {"up": up, "pids": _pids(svc.pattern or ""), "detail": f"port {svc.port}" if svc.port else "process"}
+    return {
+        "up": up,
+        "pids": _pids(svc.pattern or ""),
+        "detail": f"port {svc.port}" if svc.port else "process",
+    }
 
 
 def status() -> list[dict]:
     rows = []
     for svc in SERVICES:
         st = check(svc)
-        rows.append({
-            "name": svc.name,
-            "up": st["up"],
-            "pids": st["pids"],
-            "control": "launchd (monitor)" if not svc.managed else "PM (managed)",
-            "detail": st["detail"],
-        })
+        rows.append(
+            {
+                "name": svc.name,
+                "up": st["up"],
+                "pids": st["pids"],
+                "control": "launchd (monitor)" if not svc.managed else "PM (managed)",
+                "detail": st["detail"],
+            }
+        )
     return rows
 
 
@@ -140,8 +168,10 @@ def restart(name: str) -> str:
     if not svc:
         return f"нет сервиса '{name}'"
     if not svc.managed:
-        return (f"{svc.name}: под launchd — PM НЕ перезапускает. "
-                f"Используй: launchctl kickstart -k gui/$(id -u)/{svc.launchd_label}")
+        return (
+            f"{svc.name}: под launchd — PM НЕ перезапускает. "
+            f"Используй: launchctl kickstart -k gui/$(id -u)/{svc.launchd_label}"
+        )
     for p in _pids(svc.pattern or ""):
         try:
             os.kill(p, signal.SIGTERM)
@@ -151,8 +181,12 @@ def restart(name: str) -> str:
     if not svc.start_cmd:
         return f"{svc.name}: остановлен; команда старта не задана — запусти вручную"
     try:
-        subprocess.Popen(svc.start_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
+        subprocess.Popen(
+            svc.start_cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
         return f"{svc.name}: рестарт ({' '.join(svc.start_cmd)})"
     except Exception as e:
         return f"{svc.name}: ошибка старта — {e}"
@@ -177,6 +211,7 @@ def watch(interval: int = 15, auto: bool = False) -> None:
         print(f"PM уже запущен (lock: {LOCK}). Выход.")
         sys.exit(1)
     import atexit
+
     atexit.register(lambda: LOCK.exists() and LOCK.unlink(missing_ok=True))
     print(f"[PM] watchdog запущен (interval={interval}s, auto-restart={auto})")
     while True:
@@ -189,7 +224,9 @@ def watch(interval: int = 15, auto: bool = False) -> None:
                     print("[PM]", restart(svc.name))
             elif not st["up"]:
                 # launchd-сервис лежит — только сигналим, рестарт за launchd
-                print(f"[PM] ⚠️ {svc.name} (launchd) down — ждём KeepAlive, PM не вмешивается")
+                print(
+                    f"[PM] ⚠️ {svc.name} (launchd) down — ждём KeepAlive, PM не вмешивается"
+                )
         time.sleep(interval)
 
 
@@ -198,12 +235,16 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd")
     sub.add_parser("status")
     w = sub.add_parser("watch")
-    w.add_argument("--auto", action="store_true", help="авто-рестарт управляемых (не launchd)")
+    w.add_argument(
+        "--auto", action="store_true", help="авто-рестарт управляемых (не launchd)"
+    )
     w.add_argument("--interval", type=int, default=15)
     r = sub.add_parser("restart")
     r.add_argument("name")
     e = sub.add_parser("enforce")
-    e.add_argument("--apply", action="store_true", help="реально убить дубли (иначе dry-run)")
+    e.add_argument(
+        "--apply", action="store_true", help="реально убить дубли (иначе dry-run)"
+    )
     args = ap.parse_args()
 
     if args.cmd == "watch":

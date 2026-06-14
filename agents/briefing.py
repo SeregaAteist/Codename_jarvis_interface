@@ -4,6 +4,7 @@
 - Глобальный таймаут 2 минуты. При 0 постах — всё равно шлёт ("источники недоступны").
 - Шлёт владельцу (CFG.OWNER_USER_ID) отдельным Bot-инстансом (не мешает polling).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -11,6 +12,7 @@ import logging
 import time
 
 from agents.base import BaseAgent
+from agents.registry import register
 from core.briefing.formatter import format_briefing
 from core.briefing.reddit_rss import fetch_top_posts
 from core.briefing.summarizer import summarize_news
@@ -22,6 +24,7 @@ logger = logging.getLogger(__name__)
 BRIEFING_TIMEOUT = 120  # 2 минуты на всю операцию
 
 
+@register
 class BriefingAgent(BaseAgent):
     name = "briefing"
     capabilities = ["morning_briefing", "news_digest"]
@@ -65,6 +68,7 @@ class BriefingAgent(BaseAgent):
 
     async def _send(self, text: str) -> None:
         from telegram import Bot
+
         bot = Bot(token=CFG.TELEGRAM_TOKEN)
         async with bot:
             await bot.send_message(chat_id=CFG.OWNER_USER_ID, text=text)

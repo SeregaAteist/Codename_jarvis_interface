@@ -8,10 +8,12 @@ import subprocess
 from datetime import datetime
 
 from agents.base import BaseAgent
+from agents.registry import register
 
 logger = logging.getLogger(__name__)
 
 
+@register
 class MorningBriefingAgent(BaseAgent):
     name = "morning_briefing"
     icon = "☀"
@@ -102,6 +104,7 @@ class MorningBriefingAgent(BaseAgent):
 # ── Обратная совместимость (старый MorningAgent) ──────────────────────────────
 
 
+@register
 class MorningAgent:
     """Legacy wrapper — kept for any existing callers."""
 

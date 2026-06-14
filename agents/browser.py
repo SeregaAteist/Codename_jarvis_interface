@@ -1,5 +1,7 @@
 """Browser agent — web search, page fetch, price lookup via DuckDuckGo."""
+
 from __future__ import annotations
+
 import re
 import subprocess
 from urllib.parse import quote
@@ -25,17 +27,17 @@ _HEADERS = {
 def search_web(query: str, max_results: int = 3) -> list[dict]:
     """DuckDuckGo Lite search — no API key required."""
     try:
-        url  = f"https://lite.duckduckgo.com/lite/?q={quote(query)}"
+        url = f"https://lite.duckduckgo.com/lite/?q={quote(query)}"
         resp = httpx.get(url, headers=_HEADERS, timeout=10, follow_redirects=True)
         soup = BeautifulSoup(resp.text, "html.parser")
-        rows    = soup.find_all("tr")
+        rows = soup.find_all("tr")
         results = []
         i = 0
         while i < len(rows) and len(results) < max_results:
             row = rows[i]
-            a   = row.find("a")
+            a = row.find("a")
             if a and row.find("td", attrs={"valign": "top"}):
-                title   = a.get_text(strip=True)
+                title = a.get_text(strip=True)
                 snippet = ""
                 url_txt = ""
                 # Next non-empty rows: snippet row, then URL row
@@ -86,14 +88,14 @@ def get_weather_detailed(city: str = "Одесса") -> dict:
             f"https://wttr.in/{quote(city)}?format=j1",
             timeout=5,
         )
-        data    = resp.json()
+        data = resp.json()
         current = data["current_condition"][0]
         return {
-            "temp":     current["temp_C"],
-            "feels":    current["FeelsLikeC"],
-            "desc":     current["weatherDesc"][0]["value"],
+            "temp": current["temp_C"],
+            "feels": current["FeelsLikeC"],
+            "desc": current["weatherDesc"][0]["value"],
             "humidity": current["humidity"],
-            "wind":     current["windspeedKmph"],
+            "wind": current["windspeedKmph"],
         }
     except Exception as e:
         return {"error": str(e)}
@@ -128,6 +130,10 @@ def open_url_in_browser(url: str) -> str:
     return f"Открываю {url}, сэр."
 
 
+from agents.registry import register  # noqa: E402
+
+
+@register
 class BrowserAgent:
     name = "browser"
     icon = "🌐"
