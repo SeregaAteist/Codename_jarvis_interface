@@ -28,6 +28,7 @@ _DEFAULT_ROLES: dict[str, str] = {
     "architect": f"claude/{CFG.CLAUDE_MODEL}",
     "local_chat": f"ollama/{CFG.OLLAMA_MODEL}",
     "recommend": "groq/llama-3.3-70b-versatile",
+    "filter": "groq/llama-3.1-8b-instant",
 }
 
 

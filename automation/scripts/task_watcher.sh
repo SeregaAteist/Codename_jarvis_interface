@@ -46,6 +46,14 @@ cleanup_stale
 echo "[$(date)] Watcher started (PID $$)" >> "$LOG"
 
 while true; do
+    /opt/homebrew/bin/python3.11 -c "
+import sys; sys.path.insert(0, '$HOME/Projects/jarvis')
+from core.process_manager import get_process_manager
+restarted = get_process_manager().restart_crashed()
+if restarted:
+    print('Перезапущены:', restarted)
+" 2>>"$LOG"
+
     for task_file in "$TASKS_DIR/pending"/TASK_*.md; do
         [ -f "$task_file" ] || continue
         task_id=$(basename "$task_file" .md)

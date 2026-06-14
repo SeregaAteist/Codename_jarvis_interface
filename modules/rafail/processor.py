@@ -49,7 +49,42 @@ class RafailProcessor:
             logger.warning("[RafailProcessor] %s ошибка: %s — fallback", model, e)
             return await gemini_p.generate(self._model, prompt, gemini_pool)
 
+    async def classify_material(self, title: str, content: str) -> dict:
+        """Классифицировать материал: релевантность + тип сигнала."""
+        import json as _json
+
+        from shared.llm.router import get_router
+
+        signal_types = (
+            "technology_update/law_change/market_news/"
+            "sales_technique/equipment_update/price_change/none"
+        )
+        prompt = (
+            f"Класифікуй матеріал для бази знань LK Energy Group (СЕС, Одеса).\n\n"
+            f"Заголовок: {title}\n"
+            f"Зміст (перші 500 символів): {content[:500]}\n\n"
+            f'Поверни JSON:\n{{\n  "is_relevant": true/false,\n'
+            f'  "signal_type": "{signal_types}",\n'
+            f'  "affects": ["sales", "installation", "engineering", "management"],\n'
+            f'  "priority": "high/medium/low",\n'
+            f'  "reason": "одне речення чому релевантно або ні"\n}}\n\nТільки JSON.'
+        )
+        router = get_router()
+        try:
+            raw = await router.generate("filter", prompt)
+            text = raw.strip().strip("```json").strip("```").strip()
+            return _json.loads(text)
+        except Exception:
+            return {
+                "is_relevant": False,
+                "signal_type": "none",
+                "affects": [],
+                "priority": "low",
+                "reason": "parse error",
+            }
+
     async def is_relevant(self, title: str) -> bool:
+        """Быстрая проверка релевантности (backward compat, через _generate)."""
         prompt = kb.get_prompt("relevance_check").format(title=title)
         try:
             result = await self._generate(prompt)

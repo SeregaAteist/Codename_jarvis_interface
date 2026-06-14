@@ -107,3 +107,51 @@ class WebResearcher:
             if r.is_pdf:
                 return r.url
         return None
+
+    async def monitor_equipment_news(self, brand: str, model: str) -> list[dict]:
+        """Найти свежие новости по бренду/модели оборудования."""
+        import xml.etree.ElementTree as ET
+
+        queries = [
+            f"{brand} {model} 2026 new firmware update",
+            f"{brand} {model} problem issue recall",
+            f"{brand} solar inverter review 2026",
+        ]
+        news = []
+        async with httpx.AsyncClient(
+            timeout=15, headers={"User-Agent": "Mozilla/5.0"}
+        ) as c:
+            for query in queries:
+                try:
+                    r = await c.get(
+                        "https://news.google.com/rss/search",
+                        params={"q": query, "hl": "uk", "gl": "UA"},
+                    )
+                    root = ET.fromstring(r.text)
+                    for item in root.findall(".//item")[:3]:
+                        title = item.findtext("title", "")
+                        link = item.findtext("link", "")
+                        pub_date = item.findtext("pubDate", "")
+                        if title and link:
+                            news.append(
+                                {
+                                    "title": title,
+                                    "url": link,
+                                    "date": pub_date,
+                                    "query": query,
+                                }
+                            )
+                except Exception as e:
+                    logger.warning("[researcher] news '%s': %s", query, e)
+        return news
+
+    async def check_firmware_updates(self, brand: str, model: str) -> str | None:
+        """Проверить наличие обновлений прошивки."""
+        site = self.MANUFACTURER_SITES.get(brand.lower())
+        if not site:
+            return None
+        results = await self.search_manual(brand, f"{model} firmware update")
+        for r in results:
+            if "firmware" in r.url.lower() or "update" in r.url.lower():
+                return r.url
+        return None

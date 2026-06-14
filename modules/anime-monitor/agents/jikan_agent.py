@@ -73,3 +73,56 @@ class JikanEnricher(BaseEnricher):
 
     async def enrich(self, items: list[dict]) -> list[dict]:
         return await enrich_with_jikan(items)
+
+
+class JikanAgent(BaseEnricher):
+    """Расширенный доступ к Jikan API: сезонное, предстоящее, спешлы."""
+
+    BASE = "https://api.jikan.moe/v4"
+    RATE_LIMIT = 3
+    name = "jikan_agent"
+    priority = 2
+
+    async def enrich(self, items: list[dict]) -> list[dict]:
+        return await enrich_with_jikan(items)
+
+    async def get_seasonal(
+        self, year: int | None = None, season: str | None = None
+    ) -> list[dict]:
+        """Получить сезонное аниме."""
+        from datetime import datetime
+
+        if not year:
+            year = datetime.now().year
+        if not season:
+            month = datetime.now().month
+            season = {12: "winter", 3: "spring", 6: "summer", 9: "fall"}.get(
+                (month - 1) // 3 * 3 + 1, "spring"
+            )
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{self.BASE}/seasons/{year}/{season}")
+            r.raise_for_status()
+            return r.json().get("data", [])
+
+    async def get_upcoming(self) -> list[dict]:
+        """Аниме которое скоро выйдет."""
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{self.BASE}/seasons/upcoming", params={"limit": 20})
+            r.raise_for_status()
+            return r.json().get("data", [])
+
+    async def get_specials(self, mal_id: int) -> list[dict]:
+        """Получить спешлы для аниме по MAL ID."""
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{self.BASE}/anime/{mal_id}/relations")
+            r.raise_for_status()
+            relations = r.json().get("data", [])
+        specials = []
+        for rel in relations:
+            if rel.get("relation") in (
+                "Side story",
+                "Summary",
+                "Alternative version",
+            ):
+                specials.extend(rel.get("entry", []))
+        return specials

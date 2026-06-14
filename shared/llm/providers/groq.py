@@ -1,6 +1,7 @@
 """Groq-провайдер через HTTP (OpenAI-совместимый endpoint), без отдельного SDK.
 
-Роль 'recommend'. Использует httpx (уже в зависимостях) — groq-SDK не требуется.
+Роли: 'recommend' (llama-3.3-70b-versatile), 'filter' (llama-3.1-8b-instant).
+Использует httpx (уже в зависимостях) — groq-SDK не требуется.
 """
 
 from __future__ import annotations
@@ -12,6 +13,35 @@ from shared.config import CFG
 logger = logging.getLogger(__name__)
 
 _URL = "https://api.groq.com/openai/v1/chat/completions"
+
+GROQ_MODELS = {
+    "filter": "llama-3.1-8b-instant",
+    "analysis": "llama-3.3-70b-versatile",
+}
+
+_DAILY_LIMIT = 14400
+
+
+class GroqProvider:
+    """Groq API провайдер с отслеживанием дневного лимита."""
+
+    def __init__(self) -> None:
+        self._api_key = CFG.GROQ_API_KEY
+        self._calls_today = 0
+
+    @property
+    def is_available(self) -> bool:
+        return bool(self._api_key) and self._calls_today < _DAILY_LIMIT
+
+    async def generate(
+        self, model_role: str, prompt: str, max_tokens: int = 500
+    ) -> str:
+        if not self.is_available:
+            raise RuntimeError("Groq недоступен")
+        model = GROQ_MODELS.get(model_role, GROQ_MODELS["filter"])
+        result = await generate(model, prompt, max_tokens)
+        self._calls_today += 1
+        return result
 
 
 async def generate(model: str, content: str | list[str], max_tokens: int = 1024) -> str:
