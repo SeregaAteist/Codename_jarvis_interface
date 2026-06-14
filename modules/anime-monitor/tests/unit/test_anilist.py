@@ -1,15 +1,21 @@
 """AniList: mock GraphQL — найдено, не найдено, 429 retry; парсинг тайтла."""
+
 import httpx
 import respx
-
 from agents.anilist_agent import (
-    ANILIST_URL, _extract_search_title, enrich_with_anilist,
+    ANILIST_URL,
+    _extract_search_title,
+    enrich_with_anilist,
 )
 
 _MEDIA = {
-    "id": 10, "idMal": 1, "title": {"romaji": "Test Anime", "english": "Test"},
-    "averageScore": 85, "description": "<b>Desc</b> text",
-    "genres": ["Action", "Fantasy"], "startDate": {"year": 2024},
+    "id": 10,
+    "idMal": 1,
+    "title": {"romaji": "Test Anime", "english": "Test"},
+    "averageScore": 85,
+    "description": "<b>Desc</b> text",
+    "genres": ["Action", "Fantasy"],
+    "startDate": {"year": 2024},
 }
 
 
@@ -21,11 +27,12 @@ def test_extract_search_title():
 async def test_enrich_found():
     with respx.mock:
         respx.post(ANILIST_URL).mock(
-            return_value=httpx.Response(200, json={"data": {"Media": _MEDIA}}))
+            return_value=httpx.Response(200, json={"data": {"Media": _MEDIA}})
+        )
         items = await enrich_with_anilist([{"title": "X / Test Anime [1]"}])
     item = items[0]
     assert item["mal_score"] == 8.5 and item["mal_id"] == 1
-    assert item["synopsis"] == "Desc text"          # html вычищен
+    assert item["synopsis"] == "Desc text"  # html вычищен
     assert item["genres"] == "Action, Fantasy"
     assert item["year"] == "2024"
 
@@ -33,9 +40,10 @@ async def test_enrich_found():
 async def test_enrich_not_found_keeps_item():
     with respx.mock:
         respx.post(ANILIST_URL).mock(
-            return_value=httpx.Response(200, json={"data": {"Media": None}}))
+            return_value=httpx.Response(200, json={"data": {"Media": None}})
+        )
         items = await enrich_with_anilist([{"title": "Неизвестное [1]"}])
-    assert "mal_score" not in items[0]   # поле не появилось → fallback сработает
+    assert "mal_score" not in items[0]  # поле не появилось → fallback сработает
 
 
 async def test_rate_limit_retry(monkeypatch):
@@ -46,6 +54,7 @@ async def test_rate_limit_retry(monkeypatch):
 
     async def fake_sleep(sec):
         slept.append(sec)
+
     monkeypatch.setattr(mod.asyncio, "sleep", fake_sleep)
 
     with respx.mock:

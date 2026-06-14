@@ -1,30 +1,32 @@
 """System monitor — CPU, RAM, disk, battery, temp, network with voice alerts."""
+
 from __future__ import annotations
+
 import re
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable
 
 import psutil
 
 THRESHOLDS = {
-    "cpu":            85,   # % CPU load
-    "ram":            88,   # % RAM used
-    "disk":           90,   # % disk used
-    "temp":           85,   # °C CPU temp
-    "battery":        20,   # % — warn
-    "battery_low":    10,   # % — critical
+    "cpu": 85,  # % CPU load
+    "ram": 88,  # % RAM used
+    "disk": 90,  # % disk used
+    "temp": 85,  # °C CPU temp
+    "battery": 20,  # % — warn
+    "battery_low": 10,  # % — critical
 }
 
 # How often each alert key can fire (seconds)
 _COOLDOWNS = {
-    "cpu":              120,
-    "ram":              180,
-    "disk":            3600,
-    "temp":             180,
-    "battery_low":      300,
+    "cpu": 120,
+    "ram": 180,
+    "disk": 3600,
+    "temp": 180,
+    "battery_low": 300,
     "battery_critical": 120,
 }
 
@@ -35,12 +37,24 @@ def _get_thermal_pressure() -> str:
     """
     try:
         r = subprocess.run(
-            ["sudo", "-n", "powermetrics", "-n", "1", "-i", "200", "--samplers", "thermal"],
-            capture_output=True, text=True, timeout=5,
+            [
+                "sudo",
+                "-n",
+                "powermetrics",
+                "-n",
+                "1",
+                "-i",
+                "200",
+                "--samplers",
+                "thermal",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         m = re.search(r"Current pressure level:\s+(\w+)", r.stdout)
         if m:
-            return m.group(1)   # Nominal / Fair / Serious / Critical
+            return m.group(1)  # Nominal / Fair / Serious / Critical
     except Exception:
         pass
     return "Unknown"
@@ -55,11 +69,11 @@ def _get_cpu_temp() -> float | None:
     """
     # Intel Mac: osx-cpu-temp (brew install osx-cpu-temp)
     try:
-        r   = subprocess.run(["osx-cpu-temp"], capture_output=True, text=True, timeout=2)
+        r = subprocess.run(["osx-cpu-temp"], capture_output=True, text=True, timeout=2)
         raw = r.stdout.strip().replace("°C", "").replace("C", "").strip()
         if raw:
             val = float(raw)
-            if val > 1.0:       # 0.0 = bogus Apple Silicon reading
+            if val > 1.0:  # 0.0 = bogus Apple Silicon reading
                 return val
     except (FileNotFoundError, ValueError, subprocess.TimeoutExpired):
         pass
@@ -80,28 +94,28 @@ def _get_cpu_temp() -> float | None:
 class SystemMonitor:
     def __init__(
         self,
-        speaker:  Callable[[str], None] | None = None,
+        speaker: Callable[[str], None] | None = None,
         on_alert: Callable[[dict], None] | None = None,
     ):
-        self.speaker  = speaker
+        self.speaker = speaker
         self.on_alert = on_alert
         self._running = False
         self._alerted: dict[str, float] = {}
-        self._thread:  threading.Thread | None = None
+        self._thread: threading.Thread | None = None
         self._last_metrics: dict = {}
         self._lock = threading.Lock()
 
     # ── Metrics collection ────────────────────────────────────────────────────
 
     def get_metrics(self) -> dict:
-        cpu  = psutil.cpu_percent(interval=0.5)
-        ram  = psutil.virtual_memory()
+        cpu = psutil.cpu_percent(interval=0.5)
+        ram = psutil.virtual_memory()
         disk = psutil.disk_usage("/")
 
         # Battery
-        battery     = psutil.sensors_battery()
-        batt_pct    = round(battery.percent, 1)     if battery else None
-        batt_charge = battery.power_plugged          if battery else None
+        battery = psutil.sensors_battery()
+        batt_pct = round(battery.percent, 1) if battery else None
+        batt_charge = battery.power_plugged if battery else None
 
         # Network totals
         net = psutil.net_io_counters()
@@ -119,11 +133,13 @@ class SystemMonitor:
                     cpu_p = proc.info.get("cpu_percent") or 0
                     if cpu_p < 0.1:
                         continue
-                    top_procs.append({
-                        "name": proc.info["name"] or "?",
-                        "cpu":  round(cpu_p, 1),
-                        "ram":  round(proc.info.get("memory_percent") or 0, 1),
-                    })
+                    top_procs.append(
+                        {
+                            "name": proc.info["name"] or "?",
+                            "cpu": round(cpu_p, 1),
+                            "ram": round(proc.info.get("memory_percent") or 0, 1),
+                        }
+                    )
                     if len(top_procs) >= 3:
                         break
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -132,21 +148,21 @@ class SystemMonitor:
             pass
 
         metrics = {
-            "cpu":              round(cpu, 1),
-            "ram":              round(ram.percent, 1),
-            "ram_used_gb":      round(ram.used   / 1024 ** 3, 1),
-            "ram_total_gb":     round(ram.total  / 1024 ** 3, 1),
-            "disk":             round(disk.percent, 1),
-            "disk_free_gb":     round(disk.free   / 1024 ** 3, 1),
-            "disk_total_gb":    round(disk.total  / 1024 ** 3, 1),
-            "temp":             _get_cpu_temp(),
+            "cpu": round(cpu, 1),
+            "ram": round(ram.percent, 1),
+            "ram_used_gb": round(ram.used / 1024**3, 1),
+            "ram_total_gb": round(ram.total / 1024**3, 1),
+            "disk": round(disk.percent, 1),
+            "disk_free_gb": round(disk.free / 1024**3, 1),
+            "disk_total_gb": round(disk.total / 1024**3, 1),
+            "temp": _get_cpu_temp(),
             "thermal_pressure": _get_thermal_pressure(),
-            "battery_pct":      batt_pct,
+            "battery_pct": batt_pct,
             "battery_charging": batt_charge,
-            "net_sent_mb":      round(net.bytes_sent / 1024 ** 2, 1),
-            "net_recv_mb":      round(net.bytes_recv / 1024 ** 2, 1),
-            "top_processes":    top_procs,
-            "timestamp":        datetime.now().isoformat(),
+            "net_sent_mb": round(net.bytes_sent / 1024**2, 1),
+            "net_recv_mb": round(net.bytes_recv / 1024**2, 1),
+            "top_processes": top_procs,
+            "timestamp": datetime.now().isoformat(),
         }
         with self._lock:
             self._last_metrics = metrics
@@ -164,89 +180,113 @@ class SystemMonitor:
 
         def _can_fire(key: str) -> bool:
             cooldown = _COOLDOWNS.get(key, 300)
-            last     = self._alerted.get(key, 0.0)
+            last = self._alerted.get(key, 0.0)
             if now - last > cooldown:
                 self._alerted[key] = now
                 return True
             return False
 
         if metrics["cpu"] > THRESHOLDS["cpu"] and _can_fire("cpu"):
-            top = metrics["top_processes"][0]["name"] if metrics["top_processes"] else "?"
-            alerts.append({
-                "level":   "warning",
-                "key":     "cpu",
-                "message": (
-                    f"Загрузка процессора {metrics['cpu']}%, сэр. "
-                    f"Основной потребитель — {top}. Рекомендую закрыть лишние приложения."
-                ),
-            })
+            top = (
+                metrics["top_processes"][0]["name"] if metrics["top_processes"] else "?"
+            )
+            alerts.append(
+                {
+                    "level": "warning",
+                    "key": "cpu",
+                    "message": (
+                        f"Загрузка процессора {metrics['cpu']}%, сэр. "
+                        f"Основной потребитель — {top}. Рекомендую закрыть лишние приложения."
+                    ),
+                }
+            )
 
         if metrics["ram"] > THRESHOLDS["ram"] and _can_fire("ram"):
-            top = metrics["top_processes"][0]["name"] if metrics["top_processes"] else "?"
-            alerts.append({
-                "level":   "warning",
-                "key":     "ram",
-                "message": (
-                    f"Память заполнена на {metrics['ram']}% "
-                    f"({metrics['ram_used_gb']} из {metrics['ram_total_gb']} ГБ), сэр. "
-                    f"Основной потребитель — {top}."
-                ),
-            })
+            top = (
+                metrics["top_processes"][0]["name"] if metrics["top_processes"] else "?"
+            )
+            alerts.append(
+                {
+                    "level": "warning",
+                    "key": "ram",
+                    "message": (
+                        f"Память заполнена на {metrics['ram']}% "
+                        f"({metrics['ram_used_gb']} из {metrics['ram_total_gb']} ГБ), сэр. "
+                        f"Основной потребитель — {top}."
+                    ),
+                }
+            )
 
         if metrics["disk"] > THRESHOLDS["disk"] and _can_fire("disk"):
-            alerts.append({
-                "level":   "critical",
-                "key":     "disk",
-                "message": (
-                    f"Диск заполнен на {metrics['disk']}%. "
-                    f"Свободно {metrics['disk_free_gb']} ГБ, сэр. Требуется очистка."
-                ),
-            })
+            alerts.append(
+                {
+                    "level": "critical",
+                    "key": "disk",
+                    "message": (
+                        f"Диск заполнен на {metrics['disk']}%. "
+                        f"Свободно {metrics['disk_free_gb']} ГБ, сэр. Требуется очистка."
+                    ),
+                }
+            )
 
-        if metrics["temp"] is not None and metrics["temp"] > THRESHOLDS["temp"] and _can_fire("temp"):
-            alerts.append({
-                "level":   "warning",
-                "key":     "temp",
-                "message": (
-                    f"Температура процессора {metrics['temp']}°C, сэр. "
-                    "Система перегревается. Проверьте вентиляцию."
-                ),
-            })
+        if (
+            metrics["temp"] is not None
+            and metrics["temp"] > THRESHOLDS["temp"]
+            and _can_fire("temp")
+        ):
+            alerts.append(
+                {
+                    "level": "warning",
+                    "key": "temp",
+                    "message": (
+                        f"Температура процессора {metrics['temp']}°C, сэр. "
+                        "Система перегревается. Проверьте вентиляцию."
+                    ),
+                }
+            )
 
         pressure = metrics.get("thermal_pressure", "Nominal")
         if pressure == "Critical" and _can_fire("thermal_critical"):
-            alerts.append({
-                "level":   "critical",
-                "key":     "temp",
-                "message": "Критическое тепловое состояние системы, сэр. Возможен троттлинг процессора.",
-            })
+            alerts.append(
+                {
+                    "level": "critical",
+                    "key": "temp",
+                    "message": "Критическое тепловое состояние системы, сэр. Возможен троттлинг процессора.",
+                }
+            )
         elif pressure == "Serious" and _can_fire("thermal_serious"):
-            alerts.append({
-                "level":   "warning",
-                "key":     "temp",
-                "message": "Повышенная тепловая нагрузка на процессор, сэр. Рекомендую снизить нагрузку.",
-            })
+            alerts.append(
+                {
+                    "level": "warning",
+                    "key": "temp",
+                    "message": "Повышенная тепловая нагрузка на процессор, сэр. Рекомендую снизить нагрузку.",
+                }
+            )
 
         batt = metrics.get("battery_pct")
         if batt is not None and not metrics.get("battery_charging"):
             if batt <= THRESHOLDS["battery_low"] and _can_fire("battery_critical"):
-                alerts.append({
-                    "level":   "critical",
-                    "key":     "battery",
-                    "message": (
-                        f"Критический заряд батареи — {batt}%, сэр. "
-                        "Подключите питание немедленно."
-                    ),
-                })
+                alerts.append(
+                    {
+                        "level": "critical",
+                        "key": "battery",
+                        "message": (
+                            f"Критический заряд батареи — {batt}%, сэр. "
+                            "Подключите питание немедленно."
+                        ),
+                    }
+                )
             elif batt <= THRESHOLDS["battery"] and _can_fire("battery_low"):
-                alerts.append({
-                    "level":   "warning",
-                    "key":     "battery",
-                    "message": (
-                        f"Заряд батареи {batt}%, сэр. "
-                        "Рекомендую подключить питание."
-                    ),
-                })
+                alerts.append(
+                    {
+                        "level": "warning",
+                        "key": "battery",
+                        "message": (
+                            f"Заряд батареи {batt}%, сэр. "
+                            "Рекомендую подключить питание."
+                        ),
+                    }
+                )
 
         return alerts
 
@@ -260,7 +300,7 @@ class SystemMonitor:
         while self._running:
             try:
                 metrics = self.get_metrics()
-                alerts  = self.check_alerts(metrics)
+                alerts = self.check_alerts(metrics)
                 for alert in alerts:
                     print(f"[MONITOR] {alert['level'].upper()}: {alert['message']}")
                     if self.speaker:
@@ -281,7 +321,7 @@ class SystemMonitor:
         if self._running:
             return
         self._running = True
-        self._thread  = threading.Thread(
+        self._thread = threading.Thread(
             target=self._loop, args=(interval,), daemon=True, name="jarvis-monitor"
         )
         self._thread.start()
@@ -295,7 +335,7 @@ class SystemMonitor:
     def get_report(self) -> str:
         m = self.get_metrics()
         parts = [
-            f"Системный отчёт, сэр.",
+            "Системный отчёт, сэр.",
             f"Процессор: {m['cpu']}%.",
             f"Память: {m['ram']}% ({m['ram_used_gb']} из {m['ram_total_gb']} ГБ).",
             f"Диск: {m['disk']}%, свободно {m['disk_free_gb']} ГБ.",
@@ -343,17 +383,21 @@ class SystemMonitor:
 
     def get_thermal_report(self) -> str:
         """Report thermal state: exact °C on Intel, pressure level on Apple Silicon."""
-        m        = self.get_metrics()
+        m = self.get_metrics()
         pressure = m.get("thermal_pressure", "Unknown")
         if m["temp"] is not None:
-            level = "норма" if m["temp"] < 70 else ("повышенная" if m["temp"] < 85 else "критическая")
+            level = (
+                "норма"
+                if m["temp"] < 70
+                else ("повышенная" if m["temp"] < 85 else "критическая")
+            )
             return f"Температура процессора: {m['temp']}°C — {level}, сэр."
         _PRESSURE_RU = {
-            "Nominal":  "норма, система не греется",
-            "Fair":     "умеренная нагрузка",
-            "Serious":  "повышенная нагрузка, возможен троттлинг",
+            "Nominal": "норма, система не греется",
+            "Fair": "умеренная нагрузка",
+            "Serious": "повышенная нагрузка, возможен троттлинг",
             "Critical": "критическая нагрузка",
-            "Unknown":  "данные недоступны",
+            "Unknown": "данные недоступны",
         }
         desc = _PRESSURE_RU.get(pressure, pressure)
         return f"Тепловое давление: {pressure} — {desc}, сэр."

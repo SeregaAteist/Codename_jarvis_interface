@@ -6,12 +6,15 @@
   File URI), а не upload. 429 → заморозка ключа (пул), без повторов. retry для 503/500/NET.
 - Глобальный дедлайн (deadline_ts) и карта ошибок — общие (shared/errors).
 """
+
 from __future__ import annotations
+
 import asyncio
 import logging
 from pathlib import Path
 
 import config
+
 from shared.errors import QuotaExhausted, classify, message_for, retry_with_backoff
 
 logger = logging.getLogger(__name__)
@@ -43,8 +46,9 @@ async def _emit(on_progress, text: str) -> None:
             pass
 
 
-async def analyze_video_native(video_path: Path, prompt: str, pool,
-                               *, on_progress=None, deadline_ts=None) -> str:
+async def analyze_video_native(
+    video_path: Path, prompt: str, pool, *, on_progress=None, deadline_ts=None
+) -> str:
     from google import genai
     from google.genai import types
 
@@ -71,25 +75,36 @@ async def analyze_video_native(video_path: Path, prompt: str, pool,
             if f.state.name == "ACTIVE":
                 break
             if f.state.name == "FAILED":
-                return message_for(RuntimeError("MEDIA: Gemini не смог обработать видео"))
+                return message_for(
+                    RuntimeError("MEDIA: Gemini не смог обработать видео")
+                )
             await asyncio.sleep(2)
         else:
             return message_for(RuntimeError("MEDIA: таймаут обработки видео Gemini"))
 
         # --- анализ: upload НЕ повторяем, retry только generate (reuse URI) ---
         await _emit(on_progress, "🔍 Анализирую…")
-        safety = [types.SafetySetting(category=c, threshold="BLOCK_NONE") for c in _SAFETY_CATS]
+        safety = [
+            types.SafetySetting(category=c, threshold="BLOCK_NONE")
+            for c in _SAFETY_CATS
+        ]
         state = {"fallback": False}
 
         async def attempt():
             use_model = config.GEMINI_MODEL
             if state["fallback"]:
-                use_model = getattr(config, "GEMINI_FALLBACK_MODEL", config.GEMINI_MODEL) \
-                    if hasattr(config, "GEMINI_FALLBACK_MODEL") else "gemini-2.5-pro"
+                use_model = (
+                    getattr(config, "GEMINI_FALLBACK_MODEL", config.GEMINI_MODEL)
+                    if hasattr(config, "GEMINI_FALLBACK_MODEL")
+                    else "gemini-2.5-pro"
+                )
             try:
                 response = await client.aio.models.generate_content(
-                    model=use_model, contents=[uploaded, prompt],
-                    config=types.GenerateContentConfig(safety_settings=safety, max_output_tokens=8192),
+                    model=use_model,
+                    contents=[uploaded, prompt],
+                    config=types.GenerateContentConfig(
+                        safety_settings=safety, max_output_tokens=8192
+                    ),
                 )
                 return _text(response)
             except Exception as e:
@@ -101,7 +116,9 @@ async def analyze_video_native(video_path: Path, prompt: str, pool,
                 raise
 
         try:
-            return await retry_with_backoff(attempt, on_progress=on_progress, deadline_ts=deadline_ts)
+            return await retry_with_backoff(
+                attempt, on_progress=on_progress, deadline_ts=deadline_ts
+            )
         except Exception as e:
             logger.error("[GeminiVideo] generate code=%s detail=%s", classify(e), e)
             return message_for(e)

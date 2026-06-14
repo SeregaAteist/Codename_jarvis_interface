@@ -2,10 +2,10 @@
 
 Статусы: watching / completed / planned / dropped / on_hold.
 """
+
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from modules.anime import db
 
@@ -18,7 +18,9 @@ def _now() -> str:
 
 def _check_status(status: str) -> None:
     if status not in STATUSES:
-        raise ValueError(f"Недопустимый статус '{status}'. Допустимые: {', '.join(STATUSES)}")
+        raise ValueError(
+            f"Недопустимый статус '{status}'. Допустимые: {', '.join(STATUSES)}"
+        )
 
 
 def add(title_id: int, status: str = "planned", notes: str = "") -> int:
@@ -37,13 +39,13 @@ def add(title_id: int, status: str = "planned", notes: str = "") -> int:
         return cur.lastrowid
 
 
-def get(watch_id: int) -> Optional[dict]:
+def get(watch_id: int) -> dict | None:
     with db.connect() as c:
         row = c.execute("SELECT * FROM watchlist WHERE id=?", (watch_id,)).fetchone()
     return dict(row) if row else None
 
 
-def get_by_title(title_id: int) -> Optional[dict]:
+def get_by_title(title_id: int) -> dict | None:
     with db.connect() as c:
         row = c.execute(
             "SELECT * FROM watchlist WHERE title_id=?", (title_id,)

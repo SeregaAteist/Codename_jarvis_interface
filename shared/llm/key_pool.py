@@ -4,11 +4,11 @@
 в cooldown с авто-очисткой. Если все ключи заморожены — get() возвращает None
 (обработка останавливается), вместо бесконечного реюза мёртвого ключа.
 """
+
 from __future__ import annotations
 
 import logging
 import time
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class SimplePool:
         self._idx = 0
         self._frozen: dict[str, float] = {}  # key -> момент разморозки (unix ts)
 
-    def get(self) -> Optional[str]:
+    def get(self) -> str | None:
         now = time.time()
         available = [k for k in self.keys if self._frozen.get(k, 0.0) <= now]
         if not available:
@@ -34,9 +34,15 @@ class SimplePool:
 
     def freeze(self, key: str, seconds: float) -> None:
         self._frozen[key] = time.time() + seconds
-        logger.warning("[Pool:%s] ключ заморожен на %.0fs (до сброса квоты)", self.provider, seconds)
+        logger.warning(
+            "[Pool:%s] ключ заморожен на %.0fs (до сброса квоты)",
+            self.provider,
+            seconds,
+        )
 
-    def report_quota_exceeded(self, key: str, seconds: float = QUOTA_FREEZE_SECONDS) -> None:
+    def report_quota_exceeded(
+        self, key: str, seconds: float = QUOTA_FREEZE_SECONDS
+    ) -> None:
         """429 — заморозить ключ до сброса квоты (не на секунды)."""
         self.freeze(key, seconds)
 

@@ -1,5 +1,7 @@
 """Smart media batcher — groups items by content type and size."""
+
 from __future__ import annotations
+
 import uuid
 from dataclasses import dataclass, field
 
@@ -25,5 +27,5 @@ def smart_batch(items: list[dict], max_size: int = 5) -> list[MediaBatch]:
     """
     batches = []
     for i in range(0, len(items), max_size):
-        batches.append(MediaBatch(items=items[i:i + max_size]))
+        batches.append(MediaBatch(items=items[i : i + max_size]))
     return batches

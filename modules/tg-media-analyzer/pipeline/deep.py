@@ -1,5 +1,7 @@
 """Deep analysis — Gemini. Focus: implementation plan for JARVIS."""
+
 from __future__ import annotations
+
 import logging
 from pathlib import Path
 
@@ -38,15 +40,24 @@ pip/npm если нужны
 Отвечай на русском. Максимально технически конкретно."""
 
 
-async def deep_analyze(quick_summary: str, image_paths: list[Path], transcripts: list[str]) -> str:
+async def deep_analyze(
+    quick_summary: str, image_paths: list[Path], transcripts: list[str]
+) -> str:
     import PIL.Image
+
     parts: list = []
-    valid = [p for p in image_paths[:16] if p.exists() and p.stat().st_size <= 4 * 1024 * 1024]
+    valid = [
+        p
+        for p in image_paths[:16]
+        if p.exists() and p.stat().st_size <= 4 * 1024 * 1024
+    ]
     for img_path in valid:
         try:
             parts.append(PIL.Image.open(img_path))
         except Exception as e:
-            logger.debug("[DeepPipeline] не удалось открыть изображение %s: %s", img_path, e)
+            logger.debug(
+                "[DeepPipeline] не удалось открыть изображение %s: %s", img_path, e
+            )
     if transcripts:
         parts.append("Транскрипция/текст:\n" + "\n---\n".join(transcripts))
     if quick_summary:
@@ -62,9 +73,12 @@ async def deep_analyze(quick_summary: str, image_paths: list[Path], transcripts:
     async def attempt():
         try:
             return await gemini_p.generate(
-                CFG.GEMINI_MODEL, parts, gemini_pool,
+                CFG.GEMINI_MODEL,
+                parts,
+                gemini_pool,
                 fallback_model=CFG.GEMINI_FALLBACK_MODEL,
-                max_output_tokens=8192, use_fallback=state["fallback"],
+                max_output_tokens=8192,
+                use_fallback=state["fallback"],
             )
         except Exception as e:
             if errors.classify(e) == "GEMINI_503" and CFG.GEMINI_FALLBACK_MODEL:

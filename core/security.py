@@ -1,10 +1,13 @@
 """Security event logger for Jarvis."""
+
 from __future__ import annotations
+
 import logging
 import os
 import threading
 
 from core.config_paths import SECURITY_LOG as _SECURITY_LOG
+
 _LOG_FILE = str(_SECURITY_LOG)
 os.makedirs(os.path.dirname(_LOG_FILE), exist_ok=True)
 

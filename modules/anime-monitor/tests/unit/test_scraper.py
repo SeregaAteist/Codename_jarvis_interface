@@ -1,7 +1,7 @@
 """Scraper: парсинг HTML-фикстуры без сети (respx)."""
+
 import httpx
 import respx
-
 from agents.scraper_agent import fetch_page
 from config import cfg
 
@@ -25,16 +25,15 @@ _HTML = """
 
 async def test_fetch_page_parses_cards():
     with respx.mock:
-        respx.get(f"{cfg.BASE_URL}/").mock(
-            return_value=httpx.Response(200, text=_HTML))
+        respx.get(f"{cfg.BASE_URL}/").mock(return_value=httpx.Response(200, text=_HTML))
         async with httpx.AsyncClient() as client:
             items = await fetch_page(client, page=1)
 
-    assert len(items) == 2                      # битая карточка пропущена
+    assert len(items) == 2  # битая карточка пропущена
     first = items[0]
     assert first["title"].startswith("Тест / Test")
     assert first["url"].endswith("1-test.html")
-    assert first["img_url"] == f"{cfg.BASE_URL}/img/1.jpg"   # относительный → абсолютный
+    assert first["img_url"] == f"{cfg.BASE_URL}/img/1.jpg"  # относительный → абсолютный
     assert first["episode"] == "12 из 12"
     assert first["rating"] == "9.1"
     assert "фэнтези" in first["genres"]
@@ -66,14 +65,16 @@ async def test_category_year_filter():
 
     with respx.mock:
         respx.get(f"{cfg.BASE_URL}/zhanr/fentezi/").mock(
-            return_value=httpx.Response(200, text=_CAT_HTML))
+            return_value=httpx.Response(200, text=_CAT_HTML)
+        )
         async with httpx.AsyncClient() as client:
             items, all_below = await fetch_category_page(
-                client, "/zhanr/fentezi/", 1, 2020, 2026)
+                client, "/zhanr/fentezi/", 1, 2020, 2026
+            )
 
     assert len(items) == 1 and items[0]["year"] == "2025"
     assert "фэнтези" in items[0]["genres"]
-    assert all_below is False    # на странице есть 2025
+    assert all_below is False  # на странице есть 2025
 
 
 async def test_scrape_all_pages_dedup(monkeypatch):
@@ -86,7 +87,8 @@ async def test_scrape_all_pages_dedup(monkeypatch):
 
     async def fake_fetch(client, page):
         return [dup]
+
     monkeypatch.setattr(mod, "fetch_page", fake_fetch)
 
     items = await mod.scrape_all_pages()
-    assert len(items) == 1   # дедуп по url между страницами
+    assert len(items) == 1  # дедуп по url между страницами

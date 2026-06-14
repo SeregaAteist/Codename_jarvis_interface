@@ -2,14 +2,16 @@
 Overnight batch scraper — all genres, 2020-2026, enriched via AniList (free).
 Usage: python batch_scrape.py
 """
+
 import asyncio
 import sys
 import time
+
 sys.path.insert(0, ".")
 
+from agents.anilist_agent import enrich_with_anilist
+from agents.db_agent import init_db, upsert_anime
 from agents.scraper_agent import scrape_category
-from agents.anilist_agent  import enrich_with_anilist
-from agents.db_agent       import init_db, upsert_anime
 
 YEAR_MIN = 2020
 YEAR_MAX = 2026
@@ -17,7 +19,7 @@ YEAR_MAX = 2026
 # Genres to scrape (fantasy already done)
 GENRES = [
     ("Приключения", "/zhanr/priklyucheniya/"),
-    ("Комедия",     "/zhanr/komediya/"),
+    ("Комедия", "/zhanr/komediya/"),
 ]
 
 STATS = {"genres_done": 0, "total_raw": 0, "total_saved": 0, "errors": []}
@@ -39,13 +41,15 @@ async def process_genre(name: str, path: str) -> None:
         print(f"[Батч] Собрано: {len(raw)} тайтлов → обогащение AniList...")
 
         enriched = await enrich_with_anilist(raw)
-        saved    = upsert_anime(enriched)
-        STATS["total_saved"]  += len(saved)
-        STATS["genres_done"]  += 1
+        saved = upsert_anime(enriched)
+        STATS["total_saved"] += len(saved)
+        STATS["genres_done"] += 1
 
         elapsed = time.time() - t0
-        print(f"[Батч] {name} готово: {len(saved)}/{len(raw)} новых/обновлённых "
-              f"за {elapsed/60:.1f} мин")
+        print(
+            f"[Батч] {name} готово: {len(saved)}/{len(raw)} новых/обновлённых "
+            f"за {elapsed/60:.1f} мин"
+        )
     except Exception as e:
         msg = f"{name}: {e}"
         STATS["errors"].append(msg)
@@ -55,9 +59,9 @@ async def process_genre(name: str, path: str) -> None:
 async def main() -> None:
     init_db()
     total_start = time.time()
-    print(f"[J.A.R.V.I.S.] Ночной батч-парсинг запущен")
+    print("[J.A.R.V.I.S.] Ночной батч-парсинг запущен")
     print(f"Жанров в очереди: {len(GENRES)}  |  Годы: {YEAR_MIN}–{YEAR_MAX}")
-    print(f"Обогащение: AniList (бесплатно, без лимитов)")
+    print("Обогащение: AniList (бесплатно, без лимитов)")
 
     for name, path in GENRES:
         await process_genre(name, path)

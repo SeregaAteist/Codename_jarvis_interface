@@ -1,10 +1,11 @@
 """Claude agent — Anthropic SDK with CLI fallback."""
+
 from __future__ import annotations
+
 import os
 import subprocess
 
 from core.models import CLAUDE_MODEL
-
 
 _SYSTEM_PROMPT = (
     "Ты — JARVIS, персональный ИИ-ассистент Сергея. "
@@ -19,9 +20,9 @@ class ClaudeAgent:
     icon = "◆"
 
     def __init__(self, model: str = CLAUDE_MODEL, max_tokens: int = 512):
-        self.model      = model
+        self.model = model
         self.max_tokens = max_tokens
-        self._client    = None  # lazy init
+        self._client = None  # lazy init
 
     def _get_client(self):
         """Lazy-init Anthropic client; returns None if key missing."""
@@ -32,6 +33,7 @@ class ClaudeAgent:
             return None
         try:
             import anthropic
+
             self._client = anthropic.Anthropic(api_key=key)
             return self._client
         except ImportError:
@@ -73,7 +75,10 @@ class ClaudeAgent:
         try:
             result = subprocess.run(
                 ["claude", "--print"],
-                input=prompt, capture_output=True, text=True, timeout=30,
+                input=prompt,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if result.returncode != 0:
                 err = result.stderr.strip() or "неизвестная ошибка"

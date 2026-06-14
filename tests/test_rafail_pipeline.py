@@ -1,4 +1,5 @@
 """RF-4..RF-8: notebooklm, sources+collector, processor (мок LLM), approver."""
+
 import asyncio
 
 import pytest
@@ -6,12 +7,14 @@ import pytest
 
 def _fresh_db(tmp_path, monkeypatch):
     import modules.rafail.db as db
+
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "rafail.db")
     db.init_db()
     return db
 
 
 # ── RF-4: NotebookLM ──────────────────────────────────────────────────────────
+
 
 def test_notebooklm_push_builds_filename(monkeypatch):
     from modules.rafail.connectors.notebooklm import NotebookLMConnector
@@ -42,6 +45,7 @@ def test_notebooklm_fails_without_folder():
 
 # ── RF-5: sources + collector ─────────────────────────────────────────────────
 
+
 def test_load_sources_all_domains(tmp_path, monkeypatch):
     _fresh_db(tmp_path, monkeypatch)  # seed заполняет таблицу sources
     from modules.rafail import collector
@@ -55,20 +59,32 @@ def test_load_sources_all_domains(tmp_path, monkeypatch):
 
 def test_collect_rss_dedup(tmp_path, monkeypatch):
     _fresh_db(tmp_path, monkeypatch)
+    from core.parsers.rss import RssParser
     from modules.rafail import collector
     from modules.rafail import knowledge_base as kb
-    from core.parsers.rss import RssParser
 
     posts = [
-        {"title": "Нові тарифи НКРЕКП", "url": "https://x/1", "published": None, "source": "s"},
+        {
+            "title": "Нові тарифи НКРЕКП",
+            "url": "https://x/1",
+            "published": None,
+            "source": "s",
+        },
         {"title": "Без URL — пропуск", "url": "", "published": None, "source": "s"},
     ]
 
     async def fake_fetch(self, url, hours=48, limit=10, source=""):
         return posts
+
     monkeypatch.setattr(RssParser, "fetch", fake_fetch)
 
-    src = {"name": "T", "url": "https://x/feed", "type": "rss", "track": "all", "domain": "energy"}
+    src = {
+        "name": "T",
+        "url": "https://x/feed",
+        "type": "rss",
+        "track": "all",
+        "domain": "energy",
+    }
     assert asyncio.run(collector.collect_rss(src)) == 1
     # повторный сбор — дедуп по URL
     assert asyncio.run(collector.collect_rss(src)) == 0
@@ -88,16 +104,20 @@ def test_parse_rss2_format():
 
 # ── RF-7: processor (мок Gemini) ─────────────────────────────────────────────
 
+
 def test_make_summary_and_section(tmp_path, monkeypatch):
     _fresh_db(tmp_path, monkeypatch)
-    from modules.rafail import processor
     from modules.rafail import knowledge_base as kb
+    from modules.rafail import processor
 
     async def fake_generate(prompt, quality=False):
         return "## Згенерований контент\n— теза"
+
     monkeypatch.setattr(processor, "_generate", fake_generate)
 
-    mid = kb.add_material(domain="ses", track="sales", title="Інвертори", raw_content="дані")
+    mid = kb.add_material(
+        domain="ses", track="sales", title="Інвертори", raw_content="дані"
+    )
     pid = asyncio.run(processor.make_summary(mid))
     assert kb.get_processed(pid)["content_type"] == "summary"
 
@@ -110,18 +130,20 @@ def test_make_quiz_validates_json(tmp_path, monkeypatch):
     _fresh_db(tmp_path, monkeypatch)
     from modules.rafail import processor
 
-    good = '''```json
+    good = """```json
     [{"question": "Що таке СЕС?", "type": "multichoice", "answers": [
       {"text": "Сонячна електростанція", "correct": true, "feedback": "так"},
       {"text": "Ні", "correct": false}]}]
-    ```'''
+    ```"""
 
     async def fake_generate(prompt, quality=False):
         return good
+
     monkeypatch.setattr(processor, "_generate", fake_generate)
 
     pid = asyncio.run(processor.make_quiz("контент модуля", "М1", "sales"))
     from modules.rafail import knowledge_base as kb
+
     assert '"question"' in kb.get_processed(pid)["content"]
 
 
@@ -131,10 +153,13 @@ def test_parse_quiz_json_rejects_bad():
     with pytest.raises(ValueError):
         parse_quiz_json("нет json")
     with pytest.raises(ValueError):  # два правильных ответа
-        parse_quiz_json('[{"question":"q","answers":[{"text":"a","correct":true},{"text":"b","correct":true}]}]')
+        parse_quiz_json(
+            '[{"question":"q","answers":[{"text":"a","correct":true},{"text":"b","correct":true}]}]'
+        )
 
 
 # ── RF-8: approver ────────────────────────────────────────────────────────────
+
 
 def test_approver_approve_flow(tmp_path, monkeypatch):
     _fresh_db(tmp_path, monkeypatch)

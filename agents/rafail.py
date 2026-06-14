@@ -9,6 +9,7 @@ APPROVE-уровня возвращают понятный отказ.
   AUTO    — чтение/сбор/синхронизация → выполняется сразу, отчёт владельцу
   APPROVE — генерация/изменение контента → план → кнопки → ожидание
 """
+
 from __future__ import annotations
 
 import logging
@@ -51,7 +52,9 @@ class RafailAgent(BaseAgent):
         if cmd in ("collect", "daily_collect", "knowledge_collect"):
             return self._fmt_collect(await self.daily_collect())
         if cmd in ("fix", "fix_modules", "module_fix"):
-            return self._fmt_fix(await self.fix_pending_modules(arg.split() if arg else None))
+            return self._fmt_fix(
+                await self.fix_pending_modules(arg.split() if arg else None)
+            )
         if cmd in ("search", "knowledge_search"):
             return await self.answer_knowledge_query(arg)
         if cmd in ("progress", "progress_report"):
@@ -62,24 +65,28 @@ class RafailAgent(BaseAgent):
 
     def _require_approver(self) -> None:
         if self.approver is None:
-            raise RuntimeError("Рафаил: операция требует одобрения — approver не подключён")
+            raise RuntimeError(
+                "Рафаил: операция требует одобрения — approver не подключён"
+            )
 
     # ── APPROVE-режим ─────────────────────────────────────────────────────────
 
     async def fix_pending_modules(self, modules: list[str] | None = None) -> list[dict]:
         """ПРИОРИТЕТ 1: влить ++ в М1-М5 (Drive → Gemini → одобрение → upload)."""
         self._require_approver()
-        from modules.rafail.fixer import fix_pending_modules
         from modules.rafail.connectors.drive import DriveConnector
+        from modules.rafail.fixer import fix_pending_modules
 
         drive = self.drive or DriveConnector()
-        return await fix_pending_modules(drive=drive, approver=self.approver, modules=modules)
+        return await fix_pending_modules(
+            drive=drive, approver=self.approver, modules=modules
+        )
 
     async def generate_quizzes(self, modules_content: dict[str, str]) -> list[dict]:
         """ПРИОРИТЕТ 2: тесты модулей (Gemini → одобрение → XML → Moodle)."""
         self._require_approver()
-        from modules.rafail.quizzer import generate_quizzes
         from modules.rafail.connectors.moodle import MoodleConnector
+        from modules.rafail.quizzer import generate_quizzes
 
         moodle = self.moodle or MoodleConnector()
         return await generate_quizzes(modules_content, self.approver, moodle)
@@ -89,6 +96,7 @@ class RafailAgent(BaseAgent):
     async def daily_collect(self) -> dict:
         """Ежедневный сбор материалов по всем источникам из БД."""
         from modules.rafail import collector
+
         return await collector.collect_all()
 
     async def sync_from_crm(self) -> str:
@@ -98,28 +106,36 @@ class RafailAgent(BaseAgent):
 
         added = await collector.collect_crm()
         if not added:
-            return "✅ Рафаил выполнил\n📋 Задача: синхронизация CRM\n— новых сделок нет"
+            return (
+                "✅ Рафаил выполнил\n📋 Задача: синхронизация CRM\n— новых сделок нет"
+            )
         # свежесобранные CRM-материалы → кейсы (черновики, ждут одобрения)
-        mats = [m for m in kb.get_materials(domain="sales", limit=added)
-                if m["source_type"] == "crm"]
+        mats = [
+            m
+            for m in kb.get_materials(domain="sales", limit=added)
+            if m["source_type"] == "crm"
+        ]
         made = 0
         if self.approver is not None:
             from modules.rafail import processor
+
             for m in mats:
                 try:
                     await processor.make_case_study(m["id"])
                     made += 1
                 except Exception as e:  # noqa: BLE001
                     logger.error("[rafail] case_study #%d: %s", m["id"], e)
-        return ("✅ Рафаил выполнил\n📋 Задача: синхронизация CRM\n"
-                f"— новых сделок: {added}\n— кейсов подготовлено: {made} (ждут одобрения)")
+        return (
+            "✅ Рафаил выполнил\n📋 Задача: синхронизация CRM\n"
+            f"— новых сделок: {added}\n— кейсов подготовлено: {made} (ждут одобрения)"
+        )
 
     async def generate_progress_report(self) -> str:
         """Прогресс сотрудников из Moodle → текстовый отчёт владельцу."""
         from modules.rafail.connectors.moodle import MoodleConnector
 
         moodle = self.moodle or MoodleConnector()
-        info = await moodle.ping()
+        await moodle.ping()
         courses = await moodle.get_courses()
         users = await moodle.get_users()
 
@@ -155,6 +171,7 @@ class RafailAgent(BaseAgent):
             f"[{h['title']}]\n{(h['raw_content'] or '')[:2000]}" for h in hits
         )
         from modules.rafail import processor
+
         try:
             answer = await processor._generate(
                 f"Ответь кратко на русском на вопрос по материалам базы знаний "
@@ -176,9 +193,17 @@ class RafailAgent(BaseAgent):
 
     @staticmethod
     def _fmt_fix(results: list[dict]) -> str:
-        icons = {"uploaded": "✅", "approved": "✅", "rejected": "❌",
-                 "timeout": "⏰", "not_found": "⚠️", "no_fixes": "➖", "error": "💥"}
+        icons = {
+            "uploaded": "✅",
+            "approved": "✅",
+            "rejected": "❌",
+            "timeout": "⏰",
+            "not_found": "⚠️",
+            "no_fixes": "➖",
+            "error": "💥",
+        }
         rows = "\n".join(
-            f"{icons.get(r['status'], '•')} {r['module']}: {r['status']}" for r in results
+            f"{icons.get(r['status'], '•')} {r['module']}: {r['status']}"
+            for r in results
         )
         return f"📋 Задача: слияние правок ++ (М1-М5)\n{rows}"

@@ -2,21 +2,23 @@ from __future__ import annotations
 
 import os
 import secrets
-import time
 import threading
+import time
 from collections import defaultdict
 from typing import Annotated
 
+from agents.db_agent import (
+    add_to_watchlist,
+    get_all_snapshot,
+    get_last_scan,
+    get_recent_episodes,
+    get_watchlist,
+    update_watchlist_status,
+)
+from agents.recommend_agent import get_recommendations
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
-from agents.db_agent import (
-    get_watchlist, get_all_snapshot,
-    get_recent_episodes, add_to_watchlist, update_watchlist_status,
-    get_last_scan
-)
-from agents.recommend_agent import get_recommendations
 
 app = FastAPI(title="J.A.R.V.I.S. Anime API")
 
@@ -28,7 +30,7 @@ app.add_middleware(
         "http://127.0.0.1:8000",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "null",   # Electron / local file://
+        "null",  # Electron / local file://
     ],
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "X-Anime-Token"],
@@ -42,9 +44,9 @@ if not _API_TOKEN:
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 
-_rl_lock    = threading.Lock()
+_rl_lock = threading.Lock()
 _rl_windows: dict[str, list[float]] = defaultdict(list)
-_RL_WINDOW  = 60.0
+_RL_WINDOW = 60.0
 _RL_LIMITS: dict[str, int] = {
     "/api/recommend": 5,
     "default": 60,
@@ -52,9 +54,9 @@ _RL_LIMITS: dict[str, int] = {
 
 
 def _rate_ok(ip: str, path: str) -> bool:
-    key   = f"{ip}:{path}"
+    key = f"{ip}:{path}"
     limit = _RL_LIMITS.get(path, _RL_LIMITS["default"])
-    now   = time.monotonic()
+    now = time.monotonic()
     with _rl_lock:
         wins = _rl_windows[key]
         wins[:] = [t for t in wins if now - t < _RL_WINDOW]
@@ -78,6 +80,7 @@ def _check_request(request: Request) -> None:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+
 @app.get("/api/health")
 async def health():
     return {"status": "online", "agent": "J.A.R.V.I.S."}
@@ -96,7 +99,8 @@ async def anime_status(request: Request):
         "catalog_count": len(snapshot),
         "watching": [
             {"title": w["title"], "url": w.get("url", "")}
-            for w in watchlist if w.get("status") == "watching"
+            for w in watchlist
+            if w.get("status") == "watching"
         ],
         "last_scan": get_last_scan(),
     }
@@ -149,5 +153,5 @@ from config import MODULE_DIR  # noqa: E402
 app.mount(
     "/",
     StaticFiles(directory=os.path.join(MODULE_DIR, "bot", "mini_app"), html=True),
-    name="mini_app"
+    name="mini_app",
 )

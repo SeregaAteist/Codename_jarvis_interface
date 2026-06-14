@@ -5,6 +5,7 @@
 мульти-venv архитектуры: каждый бот держит лишь свои зависимости, а сам пакет
 agents остаётся импортируемым везде.
 """
+
 from importlib import import_module
 from typing import TYPE_CHECKING
 
@@ -37,13 +38,13 @@ def __dir__() -> list[str]:
 
 
 if TYPE_CHECKING:  # подсказки для IDE/статанализа, в рантайме не исполняются
-    from agents.ollama import OllamaAgent
-    from agents.groq import GroqAgent
-    from agents.gemini import GeminiAgent
-    from agents.xai import XAIAgent
-    from agents.claude import ClaudeAgent
     from agents.browser import BrowserAgent
+    from agents.claude import ClaudeAgent
+    from agents.gemini import GeminiAgent
+    from agents.groq import GroqAgent
     from agents.morning import MorningAgent
-    from agents.weather import WeatherAgent
+    from agents.ollama import OllamaAgent
     from agents.rss import RSSAgent
     from agents.terminal import TerminalAgent
+    from agents.weather import WeatherAgent
+    from agents.xai import XAIAgent

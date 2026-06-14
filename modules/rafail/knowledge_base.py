@@ -4,10 +4,10 @@ CRUD-слой для модуля Рафаил (корпоративная БЗ 
 Все функции синхронные (sqlite3), вызываются из async-кода через
 обычный вызов — операции короткие, блокировка незаметна.
 """
+
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from modules.rafail import db
 
@@ -17,6 +17,7 @@ def _now() -> str:
 
 
 # ── materials ─────────────────────────────────────────────────────────────────
+
 
 def add_material(
     domain: str,
@@ -35,7 +36,7 @@ def add_material(
         return cur.lastrowid
 
 
-def get_material(material_id: int) -> Optional[dict]:
+def get_material(material_id: int) -> dict | None:
     with db.connect() as c:
         row = c.execute("SELECT * FROM materials WHERE id=?", (material_id,)).fetchone()
     return dict(row) if row else None
@@ -81,8 +82,9 @@ def material_exists(source_url: str) -> bool:
 
 # ── processed ─────────────────────────────────────────────────────────────────
 
+
 def add_processed(
-    material_id: Optional[int],
+    material_id: int | None,
     content_type: str,
     track: str,
     title: str,
@@ -97,9 +99,11 @@ def add_processed(
         return cur.lastrowid
 
 
-def get_processed(processed_id: int) -> Optional[dict]:
+def get_processed(processed_id: int) -> dict | None:
     with db.connect() as c:
-        row = c.execute("SELECT * FROM processed WHERE id=?", (processed_id,)).fetchone()
+        row = c.execute(
+            "SELECT * FROM processed WHERE id=?", (processed_id,)
+        ).fetchone()
     return dict(row) if row else None
 
 
@@ -144,6 +148,7 @@ def update_content(processed_id: int, content: str) -> None:
 
 # ── moodle_map ────────────────────────────────────────────────────────────────
 
+
 def map_moodle(
     processed_id: int,
     moodle_course_id: int = 0,
@@ -155,7 +160,13 @@ def map_moodle(
         cur = c.execute(
             "INSERT INTO moodle_map (processed_id, moodle_course_id, moodle_section_id, "
             "moodle_activity_id, drive_file_id) VALUES (?,?,?,?,?)",
-            (processed_id, moodle_course_id, moodle_section_id, moodle_activity_id, drive_file_id),
+            (
+                processed_id,
+                moodle_course_id,
+                moodle_section_id,
+                moodle_activity_id,
+                drive_file_id,
+            ),
         )
         return cur.lastrowid
 
@@ -170,6 +181,7 @@ def get_moodle_map(processed_id: int) -> list[dict]:
 
 
 # ── sync_log ──────────────────────────────────────────────────────────────────
+
 
 def log_sync(action: str, status: str, details: str = "") -> None:
     with db.connect() as c:
@@ -189,6 +201,7 @@ def get_sync_log(limit: int = 50) -> list[dict]:
 
 # ── конфигурация в БД (RF-12): sources / prompts / drive_folders / settings ──
 
+
 def get_sources(domain: str = "", enabled_only: bool = True) -> list[dict]:
     q = "SELECT * FROM sources WHERE 1=1"
     params: list = []
@@ -202,8 +215,14 @@ def get_sources(domain: str = "", enabled_only: bool = True) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def add_source(domain: str, name: str, url: str, type_: str = "rss",
-               selector: str = "", track: str = "all") -> int:
+def add_source(
+    domain: str,
+    name: str,
+    url: str,
+    type_: str = "rss",
+    selector: str = "",
+    track: str = "all",
+) -> int:
     with db.connect() as c:
         cur = c.execute(
             "INSERT INTO sources (domain,name,url,type,selector,track) VALUES (?,?,?,?,?,?)",
@@ -219,7 +238,9 @@ def delete_source(source_id: int) -> None:
 
 def toggle_source(source_id: int, enabled: bool) -> None:
     with db.connect() as c:
-        c.execute("UPDATE sources SET enabled=? WHERE id=?", (1 if enabled else 0, source_id))
+        c.execute(
+            "UPDATE sources SET enabled=? WHERE id=?", (1 if enabled else 0, source_id)
+        )
 
 
 def get_prompt(name: str) -> str:
@@ -247,8 +268,10 @@ def list_prompts() -> list[str]:
 def get_folders() -> dict[str, str]:
     """{key: folder_id} — Drive-папки из БД."""
     with db.connect() as c:
-        return {r["key"]: r["folder_id"]
-                for r in c.execute("SELECT key, folder_id FROM drive_folders")}
+        return {
+            r["key"]: r["folder_id"]
+            for r in c.execute("SELECT key, folder_id FROM drive_folders")
+        }
 
 
 def get_folders_full() -> list[dict]:
@@ -288,12 +311,15 @@ def set_setting(key: str, value: str) -> None:
 
 # ── stats ─────────────────────────────────────────────────────────────────────
 
+
 def get_stats() -> dict:
     """Сводка для /rafail status."""
     with db.connect() as c:
         materials = c.execute("SELECT COUNT(*) FROM materials").fetchone()[0]
         by_status = dict(
-            c.execute("SELECT status, COUNT(*) FROM processed GROUP BY status").fetchall()
+            c.execute(
+                "SELECT status, COUNT(*) FROM processed GROUP BY status"
+            ).fetchall()
         )
         uploaded = c.execute("SELECT COUNT(*) FROM moodle_map").fetchone()[0]
     return {

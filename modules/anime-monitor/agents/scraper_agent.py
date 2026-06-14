@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+
 import httpx
 from bs4 import BeautifulSoup
 from config import cfg
@@ -30,9 +31,9 @@ async def fetch_page(client: httpx.AsyncClient, page: int) -> list[dict]:
     for card in soup.select("div.shortstory, div.short, article.shortstory"):
         try:
             title_el = (
-                card.select_one("div.shortstoryHead h2 a") or
-                card.select_one("h2 a") or
-                card.select_one(".title a")
+                card.select_one("div.shortstoryHead h2 a")
+                or card.select_one("h2 a")
+                or card.select_one(".title a")
             )
             if not title_el:
                 continue
@@ -54,14 +55,16 @@ async def fetch_page(client: httpx.AsyncClient, page: int) -> list[dict]:
             genres_el = card.select_one(".shortstoryContent p, .genres")
             genres = genres_el.get_text(strip=True)[:100] if genres_el else ""
 
-            items.append({
-                "title": title,
-                "url": url_link,
-                "img_url": img_url,
-                "episode": episode,
-                "rating": rating,
-                "genres": genres,
-            })
+            items.append(
+                {
+                    "title": title,
+                    "url": url_link,
+                    "img_url": img_url,
+                    "episode": episode,
+                    "rating": rating,
+                    "genres": genres,
+                }
+            )
         except Exception as e:
             logger.warning(f"Ошибка карточки: {e}")
             continue
@@ -78,7 +81,11 @@ async def fetch_category_page(
     year_max: int,
 ) -> tuple[list[dict], bool]:
     """Returns (items_in_range, all_years_below_min)."""
-    url = f"{cfg.BASE_URL}{base_path}" if page == 1 else f"{cfg.BASE_URL}{base_path}page/{page}/"
+    url = (
+        f"{cfg.BASE_URL}{base_path}"
+        if page == 1
+        else f"{cfg.BASE_URL}{base_path}page/{page}/"
+    )
     try:
         resp = await client.get(url, headers=HEADERS, timeout=20)
         resp.raise_for_status()
@@ -93,29 +100,29 @@ async def fetch_category_page(
     for card in soup.select("div.shortstory, div.short, article.shortstory"):
         try:
             title_el = (
-                card.select_one("div.shortstoryHead h2 a") or
-                card.select_one("h2 a") or
-                card.select_one(".title a")
+                card.select_one("div.shortstoryHead h2 a")
+                or card.select_one("h2 a")
+                or card.select_one(".title a")
             )
             if not title_el:
                 continue
 
-            title    = title_el.get_text(strip=True)
+            title = title_el.get_text(strip=True)
             url_link = title_el.get("href", "")
 
-            img_el  = card.select_one("img")
+            img_el = card.select_one("img")
             img_url = img_el.get("src", "") if img_el else ""
             if img_url and img_url.startswith("/"):
                 img_url = cfg.BASE_URL + img_url
 
             episode_el = card.select_one(".shortstoryHead span, .epizode, .series")
-            episode    = episode_el.get_text(strip=True) if episode_el else ""
+            episode = episode_el.get_text(strip=True) if episode_el else ""
 
             rating_el = card.select_one(".ratbox .voted, .rating")
-            rating    = rating_el.get_text(strip=True) if rating_el else ""
+            rating = rating_el.get_text(strip=True) if rating_el else ""
 
             content_el = card.select_one("div.shortstoryContent")
-            content    = content_el.get_text(" ", strip=True) if content_el else ""
+            content = content_el.get_text(" ", strip=True) if content_el else ""
 
             year_match = re.search(r"Год выхода[:\s]*(\d{4})", content)
             year = int(year_match.group(1)) if year_match else 0
@@ -126,22 +133,26 @@ async def fetch_category_page(
             genres = genres_match.group(1).strip()[:100] if genres_match else ""
 
             if year_min <= year <= year_max:
-                items.append({
-                    "title":   title,
-                    "url":     url_link,
-                    "img_url": img_url,
-                    "episode": episode,
-                    "rating":  rating,
-                    "genres":  genres,
-                    "year":    str(year) if year else "",
-                })
+                items.append(
+                    {
+                        "title": title,
+                        "url": url_link,
+                        "img_url": img_url,
+                        "episode": episode,
+                        "rating": rating,
+                        "genres": genres,
+                        "year": str(year) if year else "",
+                    }
+                )
         except Exception as e:
             logger.warning(f"Ошибка карточки: {e}")
             continue
 
     all_below = bool(page_years) and all(y < year_min for y in page_years)
-    logger.info(f"Страница {page}: найдено {len(items)} в диапазоне "
-          f"(годы на странице: {sorted(set(page_years), reverse=True)})")
+    logger.info(
+        f"Страница {page}: найдено {len(items)} в диапазоне "
+        f"(годы на странице: {sorted(set(page_years), reverse=True)})"
+    )
     return items, all_below
 
 

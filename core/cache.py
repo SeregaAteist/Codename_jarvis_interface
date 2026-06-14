@@ -1,11 +1,14 @@
 """Thread-safe two-tier cache (memory + disk) for Jarvis."""
+
 from __future__ import annotations
+
 import json
 import os
 import threading
 import time
 
 from core.config_paths import CACHE_DIR as _CACHE_DIR_PATH
+
 _CACHE_DIR = str(_CACHE_DIR_PATH)
 os.makedirs(_CACHE_DIR, exist_ok=True)
 
@@ -14,7 +17,7 @@ class Cache:
     """In-memory cache with optional disk fallback."""
 
     def __init__(self, ttl: int = 300, disk: bool = False):
-        self.ttl   = ttl
+        self.ttl = ttl
         self._disk = disk
         self._mem: dict[str, tuple] = {}
         self._lock = threading.Lock()
@@ -78,7 +81,7 @@ class Cache:
 
 # ── Shared instances ──────────────────────────────────────────────────────────
 
-weather_cache = Cache(ttl=600,  disk=True)   # 10 min
-search_cache  = Cache(ttl=1800, disk=True)   # 30 min
-metrics_cache = Cache(ttl=3,    disk=False)  # 3 sec
-memory_cache  = Cache(ttl=5,    disk=False)  # 5 sec  (memory.json hot-reload)
+weather_cache = Cache(ttl=600, disk=True)  # 10 min
+search_cache = Cache(ttl=1800, disk=True)  # 30 min
+metrics_cache = Cache(ttl=3, disk=False)  # 3 sec
+memory_cache = Cache(ttl=5, disk=False)  # 5 sec  (memory.json hot-reload)

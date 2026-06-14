@@ -1,4 +1,5 @@
 """SQLite: upsert, watchlist, статусы (A-8), миграция."""
+
 from agents import db_agent as db
 
 
@@ -18,7 +19,7 @@ def test_upsert_new_and_episode(tmp_db, sample_items):
 def test_watchlist_status_default(tmp_db):
     assert db.add_to_watchlist("Тест", "https://x/1") is True
     row = db.get_watchlist()[0]
-    assert row["status"] == "watching"   # дефолт A-8
+    assert row["status"] == "watching"  # дефолт A-8
 
     # повторное добавление → не дублирует, возвращает в watching
     assert db.add_to_watchlist("Тест") is False
@@ -42,12 +43,15 @@ def test_status_update_and_filter(tmp_db):
 def test_migration_adds_status_column(tmp_path, monkeypatch):
     """Старая БД без watchlist.status → init_db мигрирует."""
     import sqlite3
+
     from config import cfg
 
     db_path = str(tmp_path / "old.db")
     monkeypatch.setattr(cfg, "DB_PATH", db_path)
     c = sqlite3.connect(db_path)
-    c.execute("CREATE TABLE watchlist (id INTEGER PRIMARY KEY, title TEXT, url TEXT, added_at TEXT)")
+    c.execute(
+        "CREATE TABLE watchlist (id INTEGER PRIMARY KEY, title TEXT, url TEXT, added_at TEXT)"
+    )
     c.commit()
     c.close()
 

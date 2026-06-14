@@ -1,13 +1,14 @@
 """Task handler — plan → approve → execute pipeline."""
-from __future__ import annotations
-import logging
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from __future__ import annotations
+
+import logging
 
 import config
 from executor import get_executor
 from pipeline.task_builder import build_task
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
 
@@ -17,14 +18,22 @@ _executor = get_executor()
 
 
 def approve_keyboard(store_key: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ Одобрить — запустить", callback_data=f"approve:{store_key}"),
-        InlineKeyboardButton("❌ Отменить",             callback_data=f"cancel:{store_key}"),
-    ]])
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "✅ Одобрить — запустить", callback_data=f"approve:{store_key}"
+                ),
+                InlineKeyboardButton(
+                    "❌ Отменить", callback_data=f"cancel:{store_key}"
+                ),
+            ]
+        ]
+    )
 
 
 def _split(text: str, n: int = 4000) -> list[str]:
-    return [text[i:i + n] for i in range(0, len(text), n)]
+    return [text[i : i + n] for i in range(0, len(text), n)]
 
 
 async def handle_manual_task(update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -39,6 +48,7 @@ async def handle_manual_task(update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     import uuid
+
     store_key = uuid.uuid4().hex
     title = msg.text[:60] + ("..." if len(msg.text) > 60 else "")
     task_content = build_task(title=title, analysis=msg.text)
@@ -88,7 +98,9 @@ async def handle_task_callback(update, context: ContextTypes.DEFAULT_TYPE) -> No
     user = query.from_user
     if not user or user.id != config.OWNER_USER_ID:
         await query.answer("Недостаточно прав, сэр.", show_alert=True)
-        logger.warning("Неавторизованный user_id=%s нажал кнопку задачи", user.id if user else None)
+        logger.warning(
+            "Неавторизованный user_id=%s нажал кнопку задачи", user.id if user else None
+        )
         return
     await query.answer()
     raw = query.data or ""

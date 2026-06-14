@@ -176,3 +176,67 @@ class PriceParser:
             )
             cards.append(card)
         return cards
+
+
+class KPParser:
+    """Парсер коммерческих предложений → типовые конфигурации СЭС."""
+
+    async def parse_kp(self, content: str, source: str = "") -> dict:
+        """Извлечь конфигурацию СЭС из КП."""
+        from shared.llm.router import get_router
+
+        router = get_router()
+
+        prompt = f"""Витягни конфігурацію СЕС з комерційної пропозиції.
+
+КП:
+{content[:5000]}
+
+Поверни JSON:
+{{
+  "power_kw": 0,
+  "inverter": {{"brand": "", "model": "", "qty": 1}},
+  "panels": {{"brand": "", "model": "", "power_w": 0, "qty": 0}},
+  "batteries": [{{"brand": "", "model": "", "capacity_kwh": 0, "qty": 0}}],
+  "total_price": 0,
+  "currency": "UAH",
+  "client_type": "residential/commercial/industrial",
+  "location": "",
+  "notes": ""
+}}
+
+Тільки JSON."""
+
+        import json
+
+        raw = await router.generate("quality", prompt)
+        try:
+            text = raw.strip().strip("```json").strip("```").strip()
+            return json.loads(text)
+        except Exception:
+            return {}
+
+    async def create_case_study(self, kp_data: dict, result: str = "") -> str:
+        """Создать учебный кейс из КП."""
+        from shared.llm.router import get_router
+
+        router = get_router()
+
+        prompt = f"""Створи навчальний кейс для менеджерів LK Energy Group на основі КП.
+
+Конфігурація:
+{kp_data}
+
+Результат (якщо є): {result}
+
+Формат:
+## Кейс: [назва]
+**Клієнт:** тип, потреби
+**Рішення:** конфігурація системи
+**Чому саме це:** обґрунтування вибору обладнання
+**Результат:** якщо є
+**Що можна було зробити краще:** аналіз
+
+Мова: українська."""
+
+        return await router.generate("quality", prompt)

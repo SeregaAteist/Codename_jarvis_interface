@@ -4,18 +4,23 @@
 def build_system_prompt() -> str:
     """Assemble the full system prompt with live context injected."""
     try:
-        from core.memory import get_context_summary, get_stats_summary, get_absence_message
-        from core.preferences import load_prefs, get_notes
-        context  = get_context_summary(5)
-        absence  = get_absence_message()
-        stats    = get_stats_summary()
-        prefs    = load_prefs()
-        notes    = get_notes()[-3:]
+        from core.memory import (
+            get_absence_message,
+            get_context_summary,
+            get_stats_summary,
+        )
+        from core.preferences import get_notes, load_prefs
+
+        context = get_context_summary(5)
+        absence = get_absence_message()
+        stats = get_stats_summary()
+        prefs = load_prefs()
+        notes = get_notes()[-3:]
     except Exception:
         context = absence = ""
-        stats   = {}
-        prefs   = {}
-        notes   = []
+        stats = {}
+        prefs = {}
+        notes = []
 
     prompt = """Ты Джарвис (J.A.R.V.I.S.) — персональный искусственный интеллект Сергея.
 Локация: Одесса, Украина. Платформа: MacBook Air M2.

@@ -2,9 +2,9 @@ import asyncio
 import logging
 
 import httpx
+from config import cfg
 
 from agents.base_enricher import BaseEnricher
-from config import cfg
 
 logger = logging.getLogger("jikan")
 
@@ -28,21 +28,18 @@ async def enrich_with_jikan(items: list[dict]) -> list[dict]:
     async with httpx.AsyncClient(timeout=10) as client:
         bs = cfg.ENRICH_BATCH_SIZE
         for start in range(0, len(items), bs):
-            batch = items[start:start + bs]
+            batch = items[start : start + bs]
             await asyncio.gather(*(_enrich_one(client, i) for i in batch))
             if start + bs < len(items):
                 await asyncio.sleep(cfg.JIKAN_BATCH_PAUSE)
     return items
 
 
-async def _search_mal(
-    client: httpx.AsyncClient, title: str
-) -> dict | None:
+async def _search_mal(client: httpx.AsyncClient, title: str) -> dict | None:
     clean = _clean_title(title)
     try:
         resp = await client.get(
-            f"{cfg.JIKAN_URL}/anime",
-            params={"q": clean, "limit": 1, "sfw": True}
+            f"{cfg.JIKAN_URL}/anime", params={"q": clean, "limit": 1, "sfw": True}
         )
         resp.raise_for_status()
         data = resp.json().get("data", [])
@@ -54,8 +51,15 @@ async def _search_mal(
 
 def _clean_title(title: str) -> str:
     stop = [
-        "Смотреть", "онлайн", "все серии", "серия",
-        "субтитры", "озвучка", "HD", "1080", "720"
+        "Смотреть",
+        "онлайн",
+        "все серии",
+        "серия",
+        "субтитры",
+        "озвучка",
+        "HD",
+        "1080",
+        "720",
     ]
     result = title
     for word in stop:

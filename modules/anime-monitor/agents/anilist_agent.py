@@ -3,9 +3,9 @@ import logging
 import re
 
 import httpx
+from config import cfg
 
 from agents.base_enricher import BaseEnricher
-from config import cfg
 
 logger = logging.getLogger("anilist")
 
@@ -78,7 +78,7 @@ async def enrich_with_anilist(items: list[dict]) -> list[dict]:
     async with httpx.AsyncClient(timeout=12) as client:
         bs = cfg.ENRICH_BATCH_SIZE
         for start in range(0, len(items), bs):
-            batch = items[start:start + bs]
+            batch = items[start : start + bs]
             await asyncio.gather(*(_enrich_one(client, i) for i in batch))
             if start + bs < len(items):
                 await asyncio.sleep(cfg.ANILIST_BATCH_PAUSE)

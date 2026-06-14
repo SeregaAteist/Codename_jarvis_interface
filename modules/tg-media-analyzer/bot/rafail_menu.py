@@ -7,52 +7,74 @@
 Текстовые состояния (поиск, добавление источника, правки) — через
 chat_data["rafail_await"], роутер текста подключён в main.py.
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 
+import config
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-import config
-
 logger = logging.getLogger(__name__)
 
-_agent = None          # RafailAgent — создаётся в setup_rafail
-_approver = None       # RafailApprover
+_agent = None  # RafailAgent — создаётся в setup_rafail
+_approver = None  # RafailApprover
 
 
 def main_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 Статус", callback_data="rf:status"),
-         InlineKeyboardButton("📥 Собрать сейчас", callback_data="rf:collect")],
-        [InlineKeyboardButton("🔧 Модули", callback_data="rf:modules"),
-         InlineKeyboardButton("📝 Тесты", callback_data="rf:quizzes")],
-        [InlineKeyboardButton("⏳ Ожидают", callback_data="rf:pending"),
-         InlineKeyboardButton("👥 Прогресс", callback_data="rf:progress")],
-        [InlineKeyboardButton("🔍 Поиск", callback_data="rf:search"),
-         InlineKeyboardButton("🔄 Синхр. CRM", callback_data="rf:crm")],
-        [InlineKeyboardButton("⚙️ Настройки", callback_data="rf:settings")],
-    ])
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("📊 Статус", callback_data="rf:status"),
+                InlineKeyboardButton("📥 Собрать сейчас", callback_data="rf:collect"),
+            ],
+            [
+                InlineKeyboardButton("🔧 Модули", callback_data="rf:modules"),
+                InlineKeyboardButton("📝 Тесты", callback_data="rf:quizzes"),
+            ],
+            [
+                InlineKeyboardButton("⏳ Ожидают", callback_data="rf:pending"),
+                InlineKeyboardButton("👥 Прогресс", callback_data="rf:progress"),
+            ],
+            [
+                InlineKeyboardButton("🔍 Поиск", callback_data="rf:search"),
+                InlineKeyboardButton("🔄 Синхр. CRM", callback_data="rf:crm"),
+            ],
+            [InlineKeyboardButton("⚙️ Настройки", callback_data="rf:settings")],
+        ]
+    )
 
 
 def settings_menu() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📡 Источники", callback_data="rf:src_list"),
-         InlineKeyboardButton("💬 Промпты", callback_data="rf:prompt_list")],
-        [InlineKeyboardButton("📁 Папки Drive", callback_data="rf:folder_list"),
-         InlineKeyboardButton("← Назад", callback_data="rf:menu")],
-    ])
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("📡 Источники", callback_data="rf:src_list"),
+                InlineKeyboardButton("💬 Промпты", callback_data="rf:prompt_list"),
+            ],
+            [
+                InlineKeyboardButton("📁 Папки Drive", callback_data="rf:folder_list"),
+                InlineKeyboardButton("← Назад", callback_data="rf:menu"),
+            ],
+        ]
+    )
 
 
 def approval_keyboard(key: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Залить", callback_data=f"rfap:ok:{key}"),
-         InlineKeyboardButton("📝 Правки", callback_data=f"rfap:edit:{key}")],
-        [InlineKeyboardButton("❌ Отклонить", callback_data=f"rfap:no:{key}"),
-         InlineKeyboardButton("👁 Просмотр", callback_data=f"rfap:view:{key}")],
-    ])
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("✅ Залить", callback_data=f"rfap:ok:{key}"),
+                InlineKeyboardButton("📝 Правки", callback_data=f"rfap:edit:{key}"),
+            ],
+            [
+                InlineKeyboardButton("❌ Отклонить", callback_data=f"rfap:no:{key}"),
+                InlineKeyboardButton("👁 Просмотр", callback_data=f"rfap:view:{key}"),
+            ],
+        ]
+    )
 
 
 async def open_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -70,8 +92,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     thread = query.message.message_thread_id
 
     async def reply(text: str, kb: InlineKeyboardMarkup | None = None):
-        await context.bot.send_message(chat_id=chat_id, message_thread_id=thread,
-                                       text=text[:4000], reply_markup=kb)
+        await context.bot.send_message(
+            chat_id=chat_id, message_thread_id=thread, text=text[:4000], reply_markup=kb
+        )
 
     from modules.rafail import knowledge_base as kb_db
 
@@ -87,7 +110,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             f"• Одобрено: {s['approved']}\n"
             f"• Отклонено: {s['rejected']}\n"
             f"• Залито: {s['uploaded']} (Moodle-записей: {s['moodle_entries']})",
-            main_menu())
+            main_menu(),
+        )
 
     elif action == "collect":
         await reply("⏳ Собираю материалы по всем источникам...")
@@ -98,13 +122,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await reply(f"⚠️ Ошибка сбора: {e}", main_menu())
 
     elif action == "modules":
-        await reply("🔧 Запускаю слияние правок ++ (М1-М5).\n"
-                    "Планы на одобрение придут отдельными сообщениями.")
+        await reply(
+            "🔧 Запускаю слияние правок ++ (М1-М5).\n"
+            "Планы на одобрение придут отдельными сообщениями."
+        )
         asyncio.create_task(_run_fix_modules(context, chat_id, thread))
 
     elif action == "quizzes":
-        await reply("📝 Генерация тестов требует контента модулей из Drive.\n"
-                    "Запускаю по модулям М1-М5...")
+        await reply(
+            "📝 Генерация тестов требует контента модулей из Drive.\n"
+            "Запускаю по модулям М1-М5..."
+        )
         asyncio.create_task(_run_quizzes(context, chat_id, thread))
 
     elif action == "pending":
@@ -145,16 +173,27 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         for r in rows:
             mark = "🟢" if r["enabled"] else "⚪"
             lines.append(f"{mark} #{r['id']} [{r['domain']}/{r['track']}] {r['name']}")
-            buttons.append([InlineKeyboardButton(
-                f"🗑 {r['name'][:30]}", callback_data=f"rf:src_del_{r['id']}")])
-        buttons.append([InlineKeyboardButton("+ Добавить", callback_data="rf:src_add"),
-                        InlineKeyboardButton("← Назад", callback_data="rf:settings")])
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        f"🗑 {r['name'][:30]}", callback_data=f"rf:src_del_{r['id']}"
+                    )
+                ]
+            )
+        buttons.append(
+            [
+                InlineKeyboardButton("+ Добавить", callback_data="rf:src_add"),
+                InlineKeyboardButton("← Назад", callback_data="rf:settings"),
+            ]
+        )
         await reply("\n".join(lines), InlineKeyboardMarkup(buttons))
 
     elif action == "src_add":
         context.chat_data["rafail_await"] = "src_add"
-        await reply("📡 Формат: домен название url [rss|web] [трек]\n"
-                    "Пример: ses Ecotown https://ecotown.com.ua/feed/ rss all")
+        await reply(
+            "📡 Формат: домен название url [rss|web] [трек]\n"
+            "Пример: ses Ecotown https://ecotown.com.ua/feed/ rss all"
+        )
 
     elif action.startswith("src_del_"):
         kb_db.delete_source(int(action.rsplit("_", 1)[1]))
@@ -163,11 +202,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # ── промпты ───────────────────────────────────────────────────────────────
     elif action == "prompt_list":
         names = kb_db.list_prompts()
-        buttons = [[InlineKeyboardButton(f"👁 {n}", callback_data=f"rf:prompt_show_{n}")]
-                   for n in names]
+        buttons = [
+            [InlineKeyboardButton(f"👁 {n}", callback_data=f"rf:prompt_show_{n}")]
+            for n in names
+        ]
         buttons.append([InlineKeyboardButton("← Назад", callback_data="rf:settings")])
-        await reply("💬 Промпты (контент курсов — украинский, это норма):",
-                    InlineKeyboardMarkup(buttons))
+        await reply(
+            "💬 Промпты (контент курсов — украинский, это норма):",
+            InlineKeyboardMarkup(buttons),
+        )
 
     elif action.startswith("prompt_show_"):
         name = action.removeprefix("prompt_show_")
@@ -183,23 +226,36 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         buttons = []
         for r in rows:
             lines.append(f"• {r['key']}: {r['title'] or r['folder_id'][:20]}")
-            buttons.append([InlineKeyboardButton(
-                f"🗑 {r['key']}", callback_data=f"rf:folder_del_{r['key']}")])
-        buttons.append([InlineKeyboardButton("+ Добавить", callback_data="rf:folder_add"),
-                        InlineKeyboardButton("← Назад", callback_data="rf:settings")])
+            buttons.append(
+                [
+                    InlineKeyboardButton(
+                        f"🗑 {r['key']}", callback_data=f"rf:folder_del_{r['key']}"
+                    )
+                ]
+            )
+        buttons.append(
+            [
+                InlineKeyboardButton("+ Добавить", callback_data="rf:folder_add"),
+                InlineKeyboardButton("← Назад", callback_data="rf:settings"),
+            ]
+        )
         await reply("\n".join(lines), InlineKeyboardMarkup(buttons))
 
     elif action == "folder_add":
         context.chat_data["rafail_await"] = "folder_add"
-        await reply("📁 Формат: ключ folder_id [название]\n"
-                    "Пример: section_new 1AbCdEf... Новый раздел")
+        await reply(
+            "📁 Формат: ключ folder_id [название]\n"
+            "Пример: section_new 1AbCdEf... Новый раздел"
+        )
 
     elif action.startswith("folder_del_"):
         kb_db.delete_folder(action.removeprefix("folder_del_"))
         await reply("🗑 Папка удалена.", settings_menu())
 
 
-async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_approval_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """rfap: — решения владельца по материалам."""
     query = update.callback_query
     await query.answer()
@@ -222,7 +278,9 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
 
     elif decision == "edit":
         context.chat_data["rafail_await"] = f"edit:{key}"
-        await query.message.reply_text("📝 Пришлите правки текстом — применю и покажу новую версию.")
+        await query.message.reply_text(
+            "📝 Пришлите правки текстом — применю и покажу новую версию."
+        )
 
     elif decision == "view":
         pid = _approver.get_processed_id(key)
@@ -232,7 +290,7 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
             return
         content = row["content"] or ""
         for i in range(0, min(len(content), 12000), 4000):
-            await query.message.reply_text(content[i:i + 4000])
+            await query.message.reply_text(content[i : i + 4000])
 
 
 async def handle_text_state(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -247,21 +305,26 @@ async def handle_text_state(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     if state == "search":
         await msg.reply_text("🔍 Ищу...")
-        await msg.reply_text((await _agent.answer_knowledge_query(text))[:4000],
-                             reply_markup=main_menu())
+        await msg.reply_text(
+            (await _agent.answer_knowledge_query(text))[:4000], reply_markup=main_menu()
+        )
         return True
 
     if state == "src_add":
         parts = text.split()
         if len(parts) < 3:
-            await msg.reply_text("⚠️ Нужно минимум: домен название url", reply_markup=settings_menu())
+            await msg.reply_text(
+                "⚠️ Нужно минимум: домен название url", reply_markup=settings_menu()
+            )
             return True
         domain, name, url = parts[0], parts[1], parts[2]
         type_ = parts[3] if len(parts) > 3 else "rss"
         track = parts[4] if len(parts) > 4 else "all"
         try:
             kb_db.add_source(domain, name, url, type_, track=track)
-            await msg.reply_text(f"✅ Источник «{name}» добавлен.", reply_markup=settings_menu())
+            await msg.reply_text(
+                f"✅ Источник «{name}» добавлен.", reply_markup=settings_menu()
+            )
         except Exception as e:  # noqa: BLE001
             await msg.reply_text(f"⚠️ {e}", reply_markup=settings_menu())
         return True
@@ -269,10 +332,14 @@ async def handle_text_state(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if state == "folder_add":
         parts = text.split(maxsplit=2)
         if len(parts) < 2:
-            await msg.reply_text("⚠️ Нужно: ключ folder_id [название]", reply_markup=settings_menu())
+            await msg.reply_text(
+                "⚠️ Нужно: ключ folder_id [название]", reply_markup=settings_menu()
+            )
             return True
         kb_db.add_folder(parts[0], parts[1], parts[2] if len(parts) > 2 else "")
-        await msg.reply_text(f"✅ Папка «{parts[0]}» добавлена.", reply_markup=settings_menu())
+        await msg.reply_text(
+            f"✅ Папка «{parts[0]}» добавлена.", reply_markup=settings_menu()
+        )
         return True
 
     if state.startswith("edit:"):
@@ -280,7 +347,9 @@ async def handle_text_state(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await msg.reply_text("📝 Применяю правки...")
         try:
             asyncio.create_task(_approver.revise(key, text))
-            await msg.reply_text("📝 Правки приняты — новая версия придёт на одобрение.")
+            await msg.reply_text(
+                "📝 Правки приняты — новая версия придёт на одобрение."
+            )
         except Exception as e:  # noqa: BLE001
             await msg.reply_text(f"⚠️ {e}")
         return True
@@ -290,16 +359,23 @@ async def handle_text_state(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 # ── фоновые операции ──────────────────────────────────────────────────────────
 
+
 async def _run_fix_modules(context, chat_id: int, thread) -> None:
     try:
         results = await _agent.fix_pending_modules()
         await context.bot.send_message(
-            chat_id=chat_id, message_thread_id=thread,
-            text=_agent._fmt_fix(results), reply_markup=main_menu())
+            chat_id=chat_id,
+            message_thread_id=thread,
+            text=_agent._fmt_fix(results),
+            reply_markup=main_menu(),
+        )
     except Exception as e:  # noqa: BLE001
         await context.bot.send_message(
-            chat_id=chat_id, message_thread_id=thread,
-            text=f"⚠️ Слияние правок: {e}", reply_markup=main_menu())
+            chat_id=chat_id,
+            message_thread_id=thread,
+            text=f"⚠️ Слияние правок: {e}",
+            reply_markup=main_menu(),
+        )
 
 
 async def _run_quizzes(context, chat_id: int, thread) -> None:
@@ -320,23 +396,31 @@ async def _run_quizzes(context, chat_id: int, thread) -> None:
         lines = ["📝 Тесты:"]
         for r in results:
             lines.append(f"• {r['module']}: {r['status']}")
-        await context.bot.send_message(chat_id=chat_id, message_thread_id=thread,
-                                       text="\n".join(lines), reply_markup=main_menu())
+        await context.bot.send_message(
+            chat_id=chat_id,
+            message_thread_id=thread,
+            text="\n".join(lines),
+            reply_markup=main_menu(),
+        )
     except Exception as e:  # noqa: BLE001
         await context.bot.send_message(
-            chat_id=chat_id, message_thread_id=thread,
-            text=f"⚠️ Тесты: {e}", reply_markup=main_menu())
+            chat_id=chat_id,
+            message_thread_id=thread,
+            text=f"⚠️ Тесты: {e}",
+            reply_markup=main_menu(),
+        )
 
 
 # ── инициализация ─────────────────────────────────────────────────────────────
+
 
 def setup_rafail(app) -> None:
     """Создать агента с TG-approver и зарегистрировать в реестре."""
     global _agent, _approver
     import core.registry as registry
     from agents.rafail import RafailAgent
-    from modules.rafail.approver import RafailApprover
     from modules.rafail import db as rafail_db
+    from modules.rafail.approver import RafailApprover
 
     rafail_db.init_db()
 

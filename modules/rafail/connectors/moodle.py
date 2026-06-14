@@ -6,6 +6,7 @@
 Moodle отвечает 200 даже на ошибки — признак ошибки в теле:
 {"exception": "...", "errorcode": "...", "message": "..."}.
 """
+
 from __future__ import annotations
 
 import logging
@@ -83,18 +84,26 @@ class MoodleConnector:
         )
         return res[0] if res else {}
 
-    async def create_course(self, title: str, category_id: int, description: str = "",
-                            shortname: str = "", summary_format: int = 1) -> dict:
+    async def create_course(
+        self,
+        title: str,
+        category_id: int,
+        description: str = "",
+        shortname: str = "",
+        summary_format: int = 1,
+    ) -> dict:
         """summary_format: 1=HTML, 4=Markdown (Moodle FORMAT_MARKDOWN)."""
         res = await self.call(
             "core_course_create_courses",
-            courses=[{
-                "fullname": title,
-                "shortname": (shortname or title)[:80],
-                "categoryid": category_id,
-                "summary": description,
-                "summaryformat": summary_format,
-            }],
+            courses=[
+                {
+                    "fullname": title,
+                    "shortname": (shortname or title)[:80],
+                    "categoryid": category_id,
+                    "summary": description,
+                    "summaryformat": summary_format,
+                }
+            ],
         )
         return res[0] if res else {}
 
@@ -127,7 +136,9 @@ class MoodleConnector:
         res = await self.call("mod_quiz_get_quizzes_by_courses", courseids=[course_id])
         return res.get("quizzes", []) if isinstance(res, dict) else res
 
-    async def upload_quiz_xml(self, xml_content: str, filename: str = "quiz.xml") -> int:
+    async def upload_quiz_xml(
+        self, xml_content: str, filename: str = "quiz.xml"
+    ) -> int:
         """Загрузить Moodle XML в draft-зону пользователя. Возвращает draft itemid.
 
         Дальше itemid используется при импорте вопросов в банк
@@ -148,8 +159,13 @@ class MoodleConnector:
         )
         return int(res.get("itemid", 0)) if isinstance(res, dict) else 0
 
-    async def add_random_questions(self, quiz_id: int, category_id: int,
-                                   count: int = 1, include_subcategories: bool = False) -> Any:
+    async def add_random_questions(
+        self,
+        quiz_id: int,
+        category_id: int,
+        count: int = 1,
+        include_subcategories: bool = False,
+    ) -> Any:
         """Добавить в квиз N случайных вопросов из категории банка вопросов."""
         return await self.call(
             "mod_quiz_add_random_questions",
@@ -173,7 +189,49 @@ class MoodleConnector:
     async def get_course_completion(self, course_id: int, user_id: int) -> Any:
         return await self.call(
             "core_completion_get_course_completion_status",
-            courseid=course_id, userid=user_id,
+            courseid=course_id,
+            userid=user_id,
+        )
+
+    async def get_full_structure(self) -> dict:
+        """Получить полную структуру Moodle — категории, курсы, секции."""
+        categories = await self.call("core_course_get_categories", criteria=[])
+        courses = await self.call("core_course_get_courses")
+
+        structure: dict[str, Any] = {"categories": {}, "courses": {}}
+
+        for cat in categories:
+            structure["categories"][cat["id"]] = {
+                "name": cat["name"],
+                "parent": cat["parent"],
+                "courses": [],
+            }
+
+        for course in courses:
+            cat_id = course.get("categoryid", 0)
+            if cat_id in structure["categories"]:
+                structure["categories"][cat_id]["courses"].append(course["id"])
+
+            sections = await self.get_sections(course["id"])
+            structure["courses"][course["id"]] = {
+                "name": course["fullname"],
+                "category": cat_id,
+                "sections": len(sections),
+                "modules": sum(len(s.get("modules", [])) for s in sections),
+            }
+
+        return structure
+
+    async def export_structure_yaml(self, output_path: str) -> None:
+        """Экспортировать структуру Moodle в YAML файл."""
+        from pathlib import Path as _Path
+
+        import yaml
+
+        structure = await self.get_full_structure()
+        _Path(output_path).write_text(
+            yaml.dump(structure, allow_unicode=True),
+            encoding="utf-8",
         )
 
 

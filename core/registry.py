@@ -6,6 +6,7 @@ BaseAgent НЕ изменяется:
 - capabilities задаются при регистрации (или читаются из атрибута агента, если есть);
 - статус (idle/busy/error) трекается здесь, в реестре, а не в самом агенте.
 """
+
 from __future__ import annotations
 
 import logging
@@ -16,15 +17,19 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_agents: dict[str, "BaseAgent"] = {}
-_caps: dict[str, "BaseAgent"] = {}
+_agents: dict[str, BaseAgent] = {}
+_caps: dict[str, BaseAgent] = {}
 _agent_caps: dict[str, list[str]] = {}
 _status: dict[str, str] = {}  # name -> idle | busy | error
 
 
-def register(agent: "BaseAgent", capabilities: list[str] | None = None) -> "BaseAgent":
+def register(agent: BaseAgent, capabilities: list[str] | None = None) -> BaseAgent:
     """Зарегистрировать агента. capabilities — явно или из atтрибута agent.capabilities."""
-    caps = capabilities if capabilities is not None else list(getattr(agent, "capabilities", []))
+    caps = (
+        capabilities
+        if capabilities is not None
+        else list(getattr(agent, "capabilities", []))
+    )
     _agents[agent.name] = agent
     _agent_caps[agent.name] = caps
     _status.setdefault(agent.name, "idle")
@@ -34,7 +39,7 @@ def register(agent: "BaseAgent", capabilities: list[str] | None = None) -> "Base
     return agent
 
 
-def get_by_capability(cap: str) -> "BaseAgent":
+def get_by_capability(cap: str) -> BaseAgent:
     if cap not in _caps:
         raise KeyError(f"Нет агента с capability '{cap}'. Доступны: {sorted(_caps)}")
     return _caps[cap]

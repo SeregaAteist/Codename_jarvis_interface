@@ -1,9 +1,11 @@
 """Jarvis preferences and learned facts — persistent across sessions."""
+
 import json
 import os
 from datetime import datetime
 
 from core.config_paths import PREFS_FILE as _PREFS_FILE
+
 PREFS_FILE = str(_PREFS_FILE)
 
 _DEFAULTS = {

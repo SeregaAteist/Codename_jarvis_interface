@@ -4,19 +4,19 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import uvicorn
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-
-from config import cfg
-from agents.db_agent import init_db, upsert_anime, log_episodes
-from agents.scraper_agent import scrape_all_pages
-from agents.base_enricher import BaseEnricher
 from agents.anilist_agent import AniListEnricher
+from agents.base_enricher import BaseEnricher
+from agents.db_agent import init_db, log_episodes, upsert_anime
 from agents.jikan_agent import JikanEnricher
 from agents.kitsu_agent import KitsuEnricher
 from agents.notify_agent import notify_new_episodes, notify_scan_complete, send_message
-from bot.telegram_bot import build_app
+from agents.scraper_agent import scrape_all_pages
 from api.server import app as fastapi_app
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from bot.telegram_bot import build_app
+from config import cfg
+
 
 def _setup_logging() -> None:
     log_dir = Path(__file__).parent / "logs"
@@ -38,8 +38,8 @@ logger = logging.getLogger("main")
 # Фактический состав управляется ENRICHERS_ENABLED в .env (по name).
 ENRICHERS: list[BaseEnricher] = [
     AniListEnricher(),
-    JikanEnricher(),   # fallback автоматически (priority=1)
-    KitsuEnricher(),   # заглушка (выключена, пока нет в ENRICHERS_ENABLED)
+    JikanEnricher(),  # fallback автоматически (priority=1)
+    KitsuEnricher(),  # заглушка (выключена, пока нет в ENRICHERS_ENABLED)
 ]
 
 

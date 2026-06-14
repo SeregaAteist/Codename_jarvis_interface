@@ -1,9 +1,10 @@
 """Ollama local LLM agent — offline second brain for Jarvis."""
+
 import json
 import subprocess
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 
 OLLAMA_URL = "http://localhost:11434"
 
@@ -28,7 +29,7 @@ def ensure_running() -> bool:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        for _ in range(15):          # wait up to 15s
+        for _ in range(15):  # wait up to 15s
             time.sleep(1)
             if is_available():
                 print("[ollama] started")
@@ -62,12 +63,14 @@ def ask(prompt: str, model: str = "mistral", system: str | None = None) -> str:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
-    payload = json.dumps({
-        "model": model,
-        "messages": messages,
-        "stream": False,
-        "options": {"temperature": 0.7, "num_ctx": 4096},
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "options": {"temperature": 0.7, "num_ctx": 4096},
+        }
+    ).encode()
 
     req = urllib.request.Request(
         f"{OLLAMA_URL}/api/chat",
@@ -88,6 +91,7 @@ def ask(prompt: str, model: str = "mistral", system: str | None = None) -> str:
 def ask_jarvis(prompt: str, model: str = "mistral") -> str:
     try:
         from core.personality import build_system_prompt
+
         system = build_system_prompt()
     except Exception:
         system = _JARVIS_SYSTEM

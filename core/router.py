@@ -1,24 +1,31 @@
 """Routes classified intents to the appropriate agent."""
+
 from __future__ import annotations
+
 import re
 import subprocess
 
 # ── Browser intent patterns ───────────────────────────────────────────────────
-_SEARCH_STRIP = re.compile(r"\b(найди|поищи|что такое|кто такой|погугли|нагугли|найти)\s*", re.I)
-_PRICE_STRIP  = re.compile(r"\b(цена|сколько стоит|стоимость|почём|купить|цены на)\s*", re.I)
-_URL_PAT      = re.compile(r"https?://\S+|www\.\S+|\S+\.\w{2,4}(?:/\S*)?")
-_FETCH_STRIP  = re.compile(r"\b(прочитай страницу|что на сайте|прочти сайт)\s*", re.I)
+_SEARCH_STRIP = re.compile(
+    r"\b(найди|поищи|что такое|кто такой|погугли|нагугли|найти)\s*", re.I
+)
+_PRICE_STRIP = re.compile(
+    r"\b(цена|сколько стоит|стоимость|почём|купить|цены на)\s*", re.I
+)
+_URL_PAT = re.compile(r"https?://\S+|www\.\S+|\S+\.\w{2,4}(?:/\S*)?")
+_FETCH_STRIP = re.compile(r"\b(прочитай страницу|что на сайте|прочти сайт)\s*", re.I)
 
 
 # ── mac_control intent patterns ───────────────────────────────────────────────
-_APP_PAT   = re.compile(r"\b(открой|запусти|открыть)\s+(.+)", re.I)
-_VOL_PAT   = re.compile(r"\bгромкость\s+(\d+)", re.I)
-_LOCK_PAT  = re.compile(r"\b(заблокируй|блокировка|заблокировать)\b", re.I)
+_APP_PAT = re.compile(r"\b(открой|запусти|открыть)\s+(.+)", re.I)
+_VOL_PAT = re.compile(r"\bгромкость\s+(\d+)", re.I)
+_LOCK_PAT = re.compile(r"\b(заблокируй|блокировка|заблокировать)\b", re.I)
 _NOTIF_PAT = re.compile(r"\bуведомление\s+(.+)", re.I)
 
 
 def _mac_dispatch(text: str) -> str | None:
-    from agents.mac_control import open_app, set_volume, lock_screen, show_notification
+    from agents.mac_control import lock_screen, open_app, set_volume, show_notification
+
     t = text.strip()
     m = _APP_PAT.search(t)
     if m:
@@ -36,7 +43,10 @@ def _mac_dispatch(text: str) -> str | None:
 
 def _claude_available() -> bool:
     """SDK key set AND claude.enabled=true in config."""
-    import os, yaml
+    import os
+
+    import yaml
+
     try:
         cfg_path = os.path.join(os.path.dirname(__file__), "..", "config.yaml")
         with open(cfg_path) as f:
@@ -60,20 +70,32 @@ class Router:
     Accepted intents: morning / mac / terminal / ollama / weather / news / general
     """
 
-    def __init__(self, morning, terminal, wot, ollama, weather, rss, claude,
-                 gemini=None, groq=None, xai=None, browser=None):
-        self.morning  = morning
+    def __init__(
+        self,
+        morning,
+        terminal,
+        wot,
+        ollama,
+        weather,
+        rss,
+        claude,
+        gemini=None,
+        groq=None,
+        xai=None,
+        browser=None,
+    ):
+        self.morning = morning
         self.terminal = terminal
-        self.wot      = wot
-        self.ollama   = ollama
-        self.weather  = weather
-        self.rss      = rss
-        self.claude   = claude
-        self.gemini   = gemini
-        self.groq     = groq
-        self.xai      = xai
-        self.browser  = browser
-        self._claude_ok: bool | None = None   # cached availability
+        self.wot = wot
+        self.ollama = ollama
+        self.weather = weather
+        self.rss = rss
+        self.claude = claude
+        self.gemini = gemini
+        self.groq = groq
+        self.xai = xai
+        self.browser = browser
+        self._claude_ok: bool | None = None  # cached availability
 
     # ── Availability helpers ──────────────────────────────────────────────────
 
@@ -147,12 +169,15 @@ class Router:
 
 
 _LEARN_PAT = re.compile(r"запомни(?:\s+что)?\s+(.+)", re.I)
-_NOTE_PAT  = re.compile(r"(?:заметку|запиши)\s*:?\s*(.+)", re.I)  # заметку (с у), not заметки
+_NOTE_PAT = re.compile(
+    r"(?:заметку|запиши)\s*:?\s*(.+)", re.I
+)  # заметку (с у), not заметки
 
 
 def _memory_dispatch(text: str) -> str:
-    from core.preferences import learn, get_all_learned, add_note, get_notes
     from core.memory import get_stats_summary
+    from core.preferences import add_note, get_all_learned, get_notes, learn
+
     t = text.strip()
 
     # Check notes/stats BEFORE note-add pattern to avoid false matches
@@ -207,6 +232,7 @@ def _memory_dispatch(text: str) -> str:
 
 def _monitor_dispatch(text: str) -> str:
     from core.monitor import monitor
+
     t = text.lower()
 
     if re.search(r"\b(топ процесс|что грузит|кто грузит)\b", t):
@@ -227,7 +253,7 @@ def _monitor_dispatch(text: str) -> str:
 
 def _browser_dispatch(text: str, intent: str, ollama) -> str:
     """Handle web search / price / fetch / open_url intents."""
-    from agents.browser import smart_search, get_price, fetch_page, open_url_in_browser
+    from agents.browser import fetch_page, get_price, open_url_in_browser, smart_search
 
     if intent == "open_url":
         urls = _URL_PAT.findall(text)
@@ -244,12 +270,12 @@ def _browser_dispatch(text: str, intent: str, ollama) -> str:
 
     if intent == "price":
         product = _PRICE_STRIP.sub("", text).strip() or text
-        raw     = get_price(product)
+        raw = get_price(product)
         return _ollama_summarize(raw, f"Цены на {product}", ollama, style="price")
 
     # intent == "search"
     query = _SEARCH_STRIP.sub("", text).strip() or text
-    raw   = smart_search(query)
+    raw = smart_search(query)
     return _ollama_summarize(raw, query, ollama)
 
 

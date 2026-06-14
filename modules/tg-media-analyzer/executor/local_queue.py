@@ -5,6 +5,7 @@
 created_at, updated_at). Async-интерфейс submit/status (TaskExecutor) +
 sync-ядро (next_pending/mark/result) для watcher'а.
 """
+
 from __future__ import annotations
 
 import json
@@ -21,16 +22,14 @@ class LocalQueueExecutor(TaskExecutor):
     def __init__(self) -> None:
         DB.parent.mkdir(parents=True, exist_ok=True)
         with self._conn() as c:
-            c.execute(
-                """CREATE TABLE IF NOT EXISTS tasks (
+            c.execute("""CREATE TABLE IF NOT EXISTS tasks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     payload TEXT NOT NULL,
                     status TEXT NOT NULL DEFAULT 'pending',
                     result TEXT,
                     created_at REAL NOT NULL,
                     updated_at REAL NOT NULL
-                )"""
-            )
+                )""")
 
     def _conn(self) -> sqlite3.Connection:
         return sqlite3.connect(DB, timeout=10)
@@ -54,15 +53,19 @@ class LocalQueueExecutor(TaskExecutor):
 
     def _status(self, task_id) -> str:
         with self._conn() as c:
-            row = c.execute("SELECT status FROM tasks WHERE id=?", (task_id,)).fetchone()
+            row = c.execute(
+                "SELECT status FROM tasks WHERE id=?", (task_id,)
+            ).fetchone()
             return row[0] if row else "unknown"
 
     def result(self, task_id):
         with self._conn() as c:
-            row = c.execute("SELECT result FROM tasks WHERE id=?", (task_id,)).fetchone()
+            row = c.execute(
+                "SELECT result FROM tasks WHERE id=?", (task_id,)
+            ).fetchone()
             return row[0] if row else None
 
-    def next_pending(self) -> "tuple[int, dict] | None":
+    def next_pending(self) -> tuple[int, dict] | None:
         with self._conn() as c:
             row = c.execute(
                 "SELECT id, payload FROM tasks WHERE status='pending' ORDER BY id LIMIT 1"

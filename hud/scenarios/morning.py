@@ -1,6 +1,7 @@
 """Morning briefing: greeting + time + Open-Meteo weather only."""
-import urllib.request
+
 import json
+import urllib.request
 from datetime import datetime
 
 
@@ -18,13 +19,13 @@ def get_weather(lat: float, lon: float) -> dict:
         c = data["current"]
         d = data["daily"]
         return {
-            "temp":   round(c["temperature_2m"]),
-            "wind":   round(c["wind_speed_10m"]),
-            "desc":   _wmo(c["weather_code"]),
-            "max":    round(d["temperature_2m_max"][0]),
-            "min":    round(d["temperature_2m_min"][0]),
+            "temp": round(c["temperature_2m"]),
+            "wind": round(c["wind_speed_10m"]),
+            "desc": _wmo(c["weather_code"]),
+            "max": round(d["temperature_2m_max"][0]),
+            "min": round(d["temperature_2m_min"][0]),
             "precip": round(d["precipitation_sum"][0], 1),
-            "ok":     True,
+            "ok": True,
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -33,11 +34,11 @@ def get_weather(lat: float, lon: float) -> dict:
 def build_morning_prompt(config: dict):
     name = config["user"]["name"]
     city = config["user"]["city"]
-    lat  = config["weather"]["lat"]
-    lon  = config["weather"]["lon"]
+    lat = config["weather"]["lat"]
+    lon = config["weather"]["lon"]
 
     now = datetime.now()
-    h   = now.hour
+    h = now.hour
     if h < 6:
         tod = "Доброй ночи"
     elif h < 12:
@@ -76,12 +77,26 @@ def build_morning_prompt(config: dict):
 
 def _wmo(code: int) -> str:
     m = {
-        0: "ясно", 1: "преимущественно ясно", 2: "переменная облачность",
-        3: "пасмурно", 45: "туман", 48: "изморозь",
-        51: "лёгкая морось", 53: "морось", 55: "густая морось",
-        61: "небольшой дождь", 63: "дождь", 65: "сильный дождь",
-        71: "небольшой снег", 73: "снег", 75: "сильный снег",
-        80: "ливень", 81: "ливни", 82: "сильный ливень",
-        95: "гроза", 96: "гроза с градом", 99: "гроза с сильным градом",
+        0: "ясно",
+        1: "преимущественно ясно",
+        2: "переменная облачность",
+        3: "пасмурно",
+        45: "туман",
+        48: "изморозь",
+        51: "лёгкая морось",
+        53: "морось",
+        55: "густая морось",
+        61: "небольшой дождь",
+        63: "дождь",
+        65: "сильный дождь",
+        71: "небольшой снег",
+        73: "снег",
+        75: "сильный снег",
+        80: "ливень",
+        81: "ливни",
+        82: "сильный ливень",
+        95: "гроза",
+        96: "гроза с градом",
+        99: "гроза с сильным градом",
     }
     return m.get(code, "переменная облачность")

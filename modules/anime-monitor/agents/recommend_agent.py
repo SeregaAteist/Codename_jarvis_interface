@@ -3,11 +3,12 @@
 Прямых HTTP-вызовов LLM здесь нет: провайдер/модель/retry/ключи — забота
 shared/llm/router. Fallback и ротация ключей — внутри роутера.
 """
+
 import logging
 import os
 import sys
 
-from agents.db_agent import get_watchlist, get_all_snapshot
+from agents.db_agent import get_all_snapshot, get_watchlist
 
 logger = logging.getLogger("recommend")
 
@@ -19,6 +20,7 @@ if JARVIS_ROOT not in sys.path:
 async def _llm_generate(prompt: str) -> str:
     """Тонкая обёртка над router.generate — единственная точка мока в тестах."""
     from shared.llm import router
+
     return await router.generate("recommend", prompt)
 
 

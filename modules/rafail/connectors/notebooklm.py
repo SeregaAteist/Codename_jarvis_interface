@@ -9,13 +9,14 @@
     NOTEBOOKLM_SALES_FOLDER_ID=
     NOTEBOOKLM_ENERGY_FOLDER_ID=
 """
+
 from __future__ import annotations
 
 import logging
 import time
 
-from shared.config.secrets import opt
 from modules.rafail.connectors.drive import DriveConnector
+from shared.config.secrets import opt
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,9 @@ class NotebookLMConnector:
                 f"NotebookLM: папка для домена '{domain}' не задана — "
                 f"добавьте {_DOMAIN_ENV.get(domain, 'NOTEBOOKLM_*_FOLDER_ID')} в .env"
             )
-        safe_title = "".join(c if c.isalnum() or c in " -_" else "_" for c in title)[:80]
+        safe_title = "".join(c if c.isalnum() or c in " -_" else "_" for c in title)[
+            :80
+        ]
         filename = f"{time.strftime('%Y-%m-%d')}_{safe_title}.md"
         res = await self.drive.upload_file(content, filename, folder_id)
         logger.info("[NotebookLM] %s → %s (%s)", filename, domain, res.get("id"))

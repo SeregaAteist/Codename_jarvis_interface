@@ -3,12 +3,13 @@
 Размещена в существующей заготовке core/bus/ (была пустой директорией).
 Падение одного подписчика не роняет остальных (gather с return_exceptions).
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 from collections import defaultdict
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,9 @@ async def emit(event: str, data: dict | None = None) -> None:
     handlers = list(_subs.get(event, []))
     if not handlers:
         return
-    results = await asyncio.gather(*(cb(data) for cb in handlers), return_exceptions=True)
+    results = await asyncio.gather(
+        *(cb(data) for cb in handlers), return_exceptions=True
+    )
     for r in results:
         if isinstance(r, Exception):
             logger.warning("[bus] подписчик события '%s' упал: %s", event, r)

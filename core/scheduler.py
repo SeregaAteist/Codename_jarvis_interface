@@ -6,11 +6,12 @@
 API: schedule(job_id, cron_expr, callback), list_jobs(), remove(job_id), start().
 Первая задача — заглушка morning_briefing (лог в 08:00), наполнится в Фазе 11.
 """
+
 from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Callable
+from collections.abc import Callable
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -39,8 +40,10 @@ class APSchedulerDriver(SchedulerDriver):
 
     def schedule(self, job_id: str, cron_expr: str, callback: Callable) -> None:
         self._sched.add_job(
-            callback, CronTrigger.from_crontab(cron_expr),
-            id=job_id, replace_existing=True,
+            callback,
+            CronTrigger.from_crontab(cron_expr),
+            id=job_id,
+            replace_existing=True,
         )
         logger.info("[scheduler] job '%s' @ cron '%s'", job_id, cron_expr)
 
@@ -63,6 +66,7 @@ scheduler: SchedulerDriver = APSchedulerDriver()
 async def morning_briefing() -> None:
     """Утренний брифинг (Фаза 11): Reddit RSS → Gemini-резюме → Telegram владельцу."""
     from agents.briefing import BriefingAgent
+
     await BriefingAgent().run_briefing()
 
 
@@ -85,6 +89,7 @@ async def anime_check() -> None:
 async def rafail_collect() -> None:
     """Ежедневный сбор материалов Рафаила (RF-13)."""
     from agents.rafail import RafailAgent
+
     result = await RafailAgent().daily_collect()
     logger.info("[scheduler] rafail_collect: %s", result)
 
@@ -107,15 +112,20 @@ async def rafail_weekly_report() -> None:
 
 def register_default_jobs() -> None:
     """Стартовые задачи. Вызвать перед scheduler.start()."""
-    scheduler.schedule("morning_briefing", "0 8 * * *", morning_briefing)  # 08:00 ежедневно
-    scheduler.schedule("anime_check", "0 */3 * * *", anime_check)          # каждые 3 часа
-    scheduler.schedule("rafail_collect", "0 8 * * *", rafail_collect)      # 08:00 ежедневно
-    scheduler.schedule("rafail_report", "0 9 * * 1", rafail_weekly_report) # пн 09:00
+    scheduler.schedule(
+        "morning_briefing", "0 8 * * *", morning_briefing
+    )  # 08:00 ежедневно
+    scheduler.schedule("anime_check", "0 */3 * * *", anime_check)  # каждые 3 часа
+    scheduler.schedule("rafail_collect", "0 8 * * *", rafail_collect)  # 08:00 ежедневно
+    scheduler.schedule("rafail_report", "0 9 * * 1", rafail_weekly_report)  # пн 09:00
 
 
 def main() -> None:
     import asyncio
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+    )
     register_default_jobs()
     scheduler.start()
     logger.info("scheduler демо запущен. Jobs: %s", scheduler.list_jobs())

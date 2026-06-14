@@ -5,7 +5,9 @@ Models (free):
   llama-3.3-70b-versatile — smarter, 1 000 req/day
   mixtral-8x7b-32768    — balanced, 14 400 req/day
 """
+
 from __future__ import annotations
+
 import os
 
 _SYSTEM_PROMPT = (
@@ -23,9 +25,9 @@ class GroqAgent:
     icon = "⚡ GROQ"
 
     def __init__(self, model: str = _DEFAULT_MODEL, max_tokens: int = 512):
-        self.model      = model
+        self.model = model
         self.max_tokens = max_tokens
-        self._client    = None
+        self._client = None
 
     def _get_client(self):
         if self._client is not None:
@@ -35,6 +37,7 @@ class GroqAgent:
             return None
         try:
             from groq import Groq
+
             self._client = Groq(api_key=key)
             return self._client
         except Exception:
@@ -52,8 +55,8 @@ class GroqAgent:
                 model=self.model,
                 max_tokens=self.max_tokens,
                 messages=[
-                    {"role": "system",  "content": _SYSTEM_PROMPT},
-                    {"role": "user",    "content": prompt},
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
                 ],
             )
             return chat.choices[0].message.content.strip()

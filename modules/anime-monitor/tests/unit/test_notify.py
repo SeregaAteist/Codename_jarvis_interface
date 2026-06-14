@@ -1,6 +1,8 @@
 """Уведомления (A-9): фильтр по вотчлисту, пустой вотчлист → всё."""
-from agents import db_agent as db
+
 from agents.notify_agent import filter_by_watchlist, notify_new_episodes
+
+from agents import db_agent as db
 
 _ITEMS = [
     {"title": "Атака титанов", "url": "https://x/1", "episode": "5"},
@@ -44,5 +46,6 @@ async def test_notify_silent_when_no_match(tmp_db, sent_messages):
 
 async def test_scan_complete_message(sent_messages):
     from agents.notify_agent import notify_scan_complete
+
     await notify_scan_complete(total=120, new_count=3)
     assert len(sent_messages) == 1 and "120" in sent_messages[0]

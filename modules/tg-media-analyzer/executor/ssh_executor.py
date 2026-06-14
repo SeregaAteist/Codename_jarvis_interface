@@ -1,5 +1,7 @@
 """SSH Executor — all Claude calls go through local watcher."""
+
 from __future__ import annotations
+
 import asyncio
 import logging
 import os
@@ -11,13 +13,15 @@ logger = logging.getLogger(__name__)
 
 # Инфраструктура читается ТОЛЬКО из окружения/.env — в исходниках публичного репо
 # никаких IP/имён/путей. Пустой SSH_HOST = исполнитель отключён (см. guard ниже).
-SSH_HOST  = os.environ.get("SSH_HOST",  "")
-SSH_USER  = os.environ.get("SSH_USER",  "")
-SSH_KEY   = os.environ.get("SSH_KEY",   os.path.expanduser("~/.ssh/jarvis_bot"))
-HOME      = os.environ.get("SSH_HOME",  os.path.expanduser("~"))
-TASKS_DIR = os.environ.get("TASKS_DIR", os.path.join(os.path.expanduser("~"), "Projects/jarvis/tasks"))
+SSH_HOST = os.environ.get("SSH_HOST", "")
+SSH_USER = os.environ.get("SSH_USER", "")
+SSH_KEY = os.environ.get("SSH_KEY", os.path.expanduser("~/.ssh/jarvis_bot"))
+HOME = os.environ.get("SSH_HOME", os.path.expanduser("~"))
+TASKS_DIR = os.environ.get(
+    "TASKS_DIR", os.path.join(os.path.expanduser("~"), "Projects/jarvis/tasks")
+)
 # Корень git-репозитория = родитель TASKS_DIR (без хардкода пути).
-REPO_DIR  = os.environ.get("JARVIS_REPO", os.path.dirname(TASKS_DIR.rstrip("/")))
+REPO_DIR = os.environ.get("JARVIS_REPO", os.path.dirname(TASKS_DIR.rstrip("/")))
 
 PLAN_PROMPT = """Ты получил задачу. НЕ выполняй её — только составь план.
 
@@ -53,8 +57,10 @@ async def execute_task(task_content: str) -> str:
 async def _run_via_watcher(prompt: str, timeout: int = 300) -> str:
     """Write task for watcher, poll for result."""
     if not SSH_HOST:
-        return ("⚠️ SSH-исполнитель не настроен: задайте SSH_HOST (и SSH_USER) в .env. "
-                "Инфраструктура намеренно не хранится в исходниках публичного репо.")
+        return (
+            "⚠️ SSH-исполнитель не настроен: задайте SSH_HOST (и SSH_USER) в .env. "
+            "Инфраструктура намеренно не хранится в исходниках публичного репо."
+        )
     task_id = uuid.uuid4().hex[:8]
     task_file = f"{TASKS_DIR}/pending/TASK_{task_id}.md"
     result_file = f"{TASKS_DIR}/done/TASK_{task_id}.result"
@@ -77,10 +83,14 @@ async def _run_via_watcher(prompt: str, timeout: int = 300) -> str:
 async def _write_file(remote_path: str, content: str) -> None:
     proc = await asyncio.create_subprocess_exec(
         "ssh",
-        "-i", SSH_KEY,
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "ConnectTimeout=10",
-        "-l", SSH_USER,
+        "-i",
+        SSH_KEY,
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "ConnectTimeout=10",
+        "-l",
+        SSH_USER,
         SSH_HOST,
         f"cat > {remote_path}",
         stdin=asyncio.subprocess.PIPE,
@@ -96,10 +106,14 @@ async def _write_file(remote_path: str, content: str) -> None:
 async def _ssh(cmd: str, timeout: int = 30) -> str:
     proc = await asyncio.create_subprocess_exec(
         "ssh",
-        "-i", SSH_KEY,
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "ConnectTimeout=10",
-        "-l", SSH_USER,
+        "-i",
+        SSH_KEY,
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "ConnectTimeout=10",
+        "-l",
+        SSH_USER,
         SSH_HOST,
         f"export HOME={HOME} && {cmd}",
         stdout=asyncio.subprocess.PIPE,
@@ -122,10 +136,14 @@ async def autocommit(message: str) -> str:
     cmd = f"cd {REPO_DIR} && git add -A && git commit -F - 2>&1 || true"
     proc = await asyncio.create_subprocess_exec(
         "ssh",
-        "-i", SSH_KEY,
-        "-o", "StrictHostKeyChecking=accept-new",
-        "-o", "ConnectTimeout=10",
-        "-l", SSH_USER,
+        "-i",
+        SSH_KEY,
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "-o",
+        "ConnectTimeout=10",
+        "-l",
+        SSH_USER,
         SSH_HOST,
         cmd,
         stdin=asyncio.subprocess.PIPE,
@@ -142,7 +160,9 @@ async def autocommit(message: str) -> str:
         return "⚠️ commit timeout"
 
 
-from executor.base import TaskExecutor  # noqa: E402 (в конце — после определения функций)
+from executor.base import (
+    TaskExecutor,
+)  # noqa: E402 (в конце — после определения функций)
 
 
 class SshExecutor(TaskExecutor):
@@ -174,6 +194,7 @@ class SshExecutor(TaskExecutor):
         if not SSH_HOST:
             return "unknown"
         ex = await _ssh(
-            f"test -f {TASKS_DIR}/done/TASK_{task_id}.result && echo yes || echo no", timeout=10
+            f"test -f {TASKS_DIR}/done/TASK_{task_id}.result && echo yes || echo no",
+            timeout=10,
         )
         return "done" if ex.strip() == "yes" else "pending"

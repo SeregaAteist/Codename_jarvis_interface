@@ -1,6 +1,6 @@
 """Task Builder — builds Claude Code task from media analysis."""
-from __future__ import annotations
 
+from __future__ import annotations
 
 TASK_TEMPLATE = """# JARVIS Task — {title}
 

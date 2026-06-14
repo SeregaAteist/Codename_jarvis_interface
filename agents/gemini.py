@@ -1,5 +1,7 @@
 """Gemini agent — google-genai SDK with model fallback chain."""
+
 from __future__ import annotations
+
 import os
 
 from core.models import GEMINI_MODEL
@@ -27,9 +29,9 @@ class GeminiAgent:
     icon = "◈ GEMINI"
 
     def __init__(self, model: str = _DEFAULT_MODEL, max_tokens: int = 512):
-        self.model      = model
+        self.model = model
         self.max_tokens = max_tokens
-        self._client    = None
+        self._client = None
 
     def _get_client(self):
         if self._client is not None:
@@ -39,6 +41,7 @@ class GeminiAgent:
             return None
         try:
             from google import genai
+
             self._client = genai.Client(api_key=key)
             return self._client
         except Exception:
@@ -53,6 +56,7 @@ class GeminiAgent:
             return "GEMINI_API_KEY не задан в .env, сэр."
 
         from google.genai import types
+
         cfg = types.GenerateContentConfig(
             system_instruction=_SYSTEM_PROMPT,
             max_output_tokens=self.max_tokens,
@@ -64,7 +68,9 @@ class GeminiAgent:
         for model in models:
             try:
                 resp = client.models.generate_content(
-                    model=model, contents=prompt, config=cfg,
+                    model=model,
+                    contents=prompt,
+                    config=cfg,
                 )
                 return resp.text.strip()
             except Exception as e:

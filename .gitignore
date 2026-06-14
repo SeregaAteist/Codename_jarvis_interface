@@ -18,6 +18,11 @@ build/
 hud/data/
 **/data/
 *.db
+
+# Coverage и резервные копии
+.coverage
+backups/
+logs/
 **/data/*.json
 tmp/
 **/tmp/

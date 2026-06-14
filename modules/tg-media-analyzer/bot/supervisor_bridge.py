@@ -6,15 +6,16 @@
   ❌ → Future(False) → cancelled, уведомление (правка сообщения).
 Таймаут ожидания APPROVE_TIMEOUT → безопасная отмена.
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import uuid
 
+import config
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-import config
 import core.bus as bus
 from core.supervisor import register_supervisor
 
@@ -51,15 +52,22 @@ class TelegramApprover:
 
 def setup_supervisor(app):
     """Зарегистрировать Капитана с TG-approve + подписать уведомления о результате."""
+
     async def _send(plan: str, key: str) -> None:
-        kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ Выполнить", callback_data=f"sup_ok:{key}"),
-            InlineKeyboardButton("❌ Отмена", callback_data=f"sup_no:{key}"),
-        ]])
+        kb = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton("✅ Выполнить", callback_data=f"sup_ok:{key}"),
+                    InlineKeyboardButton("❌ Отмена", callback_data=f"sup_no:{key}"),
+                ]
+            ]
+        )
         await app.bot.send_message(
-            chat_id=config.TELEGRAM_CHAT_ID, message_thread_id=config.TASKS_TOPIC_ID,
+            chat_id=config.TELEGRAM_CHAT_ID,
+            message_thread_id=config.TASKS_TOPIC_ID,
             text=f"🧭 *Капитан запрашивает подтверждение:*\n\n{plan}",
-            parse_mode="Markdown", reply_markup=kb,
+            parse_mode="Markdown",
+            reply_markup=kb,
         )
 
     approver = TelegramApprover(_send)
@@ -68,17 +76,24 @@ def setup_supervisor(app):
 
     async def _notify(text: str) -> None:
         try:
-            await app.bot.send_message(chat_id=config.TELEGRAM_CHAT_ID,
-                                       message_thread_id=config.TASKS_TOPIC_ID, text=text)
+            await app.bot.send_message(
+                chat_id=config.TELEGRAM_CHAT_ID,
+                message_thread_id=config.TASKS_TOPIC_ID,
+                text=text,
+            )
         except Exception as e:
             logger.error("[supervisor notify] %s", e)
 
     async def _on_completed(data: dict) -> None:
-        await _notify(f"✅ Капитан: задача '{data.get('capability')}' выполнена.\n\n"
-                      f"{str(data.get('result', ''))[:3500]}")
+        await _notify(
+            f"✅ Капитан: задача '{data.get('capability')}' выполнена.\n\n"
+            f"{str(data.get('result', ''))[:3500]}"
+        )
 
     async def _on_failed(data: dict) -> None:
-        await _notify(f"⚠️ Капитан: задача '{data.get('capability')}' упала: {data.get('error')}")
+        await _notify(
+            f"⚠️ Капитан: задача '{data.get('capability')}' упала: {data.get('error')}"
+        )
 
     bus.on("task.completed", _on_completed)
     bus.on("task.failed", _on_failed)
@@ -92,7 +107,10 @@ async def handle_supervisor_callback(update, context) -> None:
     user = query.from_user
     if not user or user.id != config.OWNER_USER_ID:
         await query.answer("Недостаточно прав, сэр.", show_alert=True)
-        logger.warning("Неавторизованный user_id=%s нажал кнопку Капитана", user.id if user else None)
+        logger.warning(
+            "Неавторизованный user_id=%s нажал кнопку Капитана",
+            user.id if user else None,
+        )
         return
     await query.answer()
     raw = query.data or ""
@@ -104,7 +122,9 @@ async def handle_supervisor_callback(update, context) -> None:
     ok = bool(approver) and approver.resolve(key, approved)
     base = query.message.text or ""
     if not ok:
-        await query.edit_message_text(base + "\n\n⚠️ Запрос устарел.", reply_markup=None)
+        await query.edit_message_text(
+            base + "\n\n⚠️ Запрос устарел.", reply_markup=None
+        )
         return
     await query.edit_message_text(
         base + ("\n\n✅ Одобрено, выполняю…" if approved else "\n\n❌ Отменено."),

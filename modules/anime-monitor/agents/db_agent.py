@@ -3,7 +3,6 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Optional
 
 from config import cfg
 
@@ -78,33 +77,46 @@ def upsert_anime(items: list[dict]) -> list[dict]:
     with conn() as c:
         for item in items:
             existing = c.execute(
-                "SELECT episode FROM anime_snapshot WHERE url = ?",
-                (item["url"],)
+                "SELECT episode FROM anime_snapshot WHERE url = ?", (item["url"],)
             ).fetchone()
             if existing is None:
-                c.execute("""
+                c.execute(
+                    """
                     INSERT INTO anime_snapshot
                         (url,title,episode,rating,genres,year,img_url,
                          mal_score,mal_id,synopsis,first_seen,last_seen)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-                """, (
-                    item["url"], item["title"], item.get("episode"),
-                    item.get("rating"), item.get("genres"), item.get("year"),
-                    item.get("img_url"), item.get("mal_score"),
-                    item.get("mal_id"), item.get("synopsis"), now, now
-                ))
+                """,
+                    (
+                        item["url"],
+                        item["title"],
+                        item.get("episode"),
+                        item.get("rating"),
+                        item.get("genres"),
+                        item.get("year"),
+                        item.get("img_url"),
+                        item.get("mal_score"),
+                        item.get("mal_id"),
+                        item.get("synopsis"),
+                        now,
+                        now,
+                    ),
+                )
                 new_items.append({**item, "reason": "new_anime"})
             elif existing["episode"] != item.get("episode"):
-                c.execute("""
+                c.execute(
+                    """
                     UPDATE anime_snapshot
                     SET episode=?, last_seen=?
                     WHERE url=?
-                """, (item.get("episode"), now, item["url"]))
+                """,
+                    (item.get("episode"), now, item["url"]),
+                )
                 new_items.append({**item, "reason": "new_episode"})
             else:
                 c.execute(
                     "UPDATE anime_snapshot SET last_seen=? WHERE url=?",
-                    (now, item["url"])
+                    (now, item["url"]),
                 )
     return new_items
 
@@ -113,20 +125,23 @@ def log_episodes(items: list[dict]) -> None:
     now = datetime.now().isoformat(timespec="seconds")
     with conn() as c:
         for item in items:
-            c.execute("""
+            c.execute(
+                """
                 INSERT INTO episodes_log
                     (anime_url, anime_title, episode, detected_at)
                 VALUES (?,?,?,?)
-            """, (item["url"], item["title"], item.get("episode"), now))
+            """,
+                (item["url"], item["title"], item.get("episode"), now),
+            )
 
 
-def get_watchlist(status: Optional[str] = None) -> list[dict]:
+def get_watchlist(status: str | None = None) -> list[dict]:
     """status=None → весь вотчлист; иначе фильтр по статусу (A-8)."""
     with conn() as c:
         if status:
             rows = c.execute(
                 "SELECT * FROM watchlist WHERE status=? ORDER BY added_at DESC",
-                (status,)
+                (status,),
             ).fetchall()
         else:
             rows = c.execute(
@@ -144,14 +159,16 @@ def add_to_watchlist(title: str, url: str = "") -> bool:
         if existing:
             # повторное добавление = вернуть в просмотр
             c.execute(
-                "UPDATE watchlist SET status='watching' WHERE id=?",
-                (existing["id"],)
+                "UPDATE watchlist SET status='watching' WHERE id=?", (existing["id"],)
             )
             return False
-        c.execute("""
+        c.execute(
+            """
             INSERT INTO watchlist (title, url, status, added_at)
             VALUES (?,?,?,?)
-        """, (title, url, "watching", now))
+        """,
+            (title, url, "watching", now),
+        )
     return True
 
 
@@ -159,10 +176,7 @@ def update_watchlist_status(title: str, status: str) -> bool:
     if status not in WATCHLIST_STATUSES:
         return False
     with conn() as c:
-        cur = c.execute(
-            "UPDATE watchlist SET status=? WHERE title=?",
-            (status, title)
-        )
+        cur = c.execute("UPDATE watchlist SET status=? WHERE title=?", (status, title))
         return cur.rowcount > 0
 
 
@@ -172,18 +186,20 @@ def update_status_by_id(watchlist_id: int, status: str) -> bool:
         return False
     with conn() as c:
         cur = c.execute(
-            "UPDATE watchlist SET status=? WHERE id=?",
-            (status, watchlist_id)
+            "UPDATE watchlist SET status=? WHERE id=?", (status, watchlist_id)
         )
         return cur.rowcount > 0
 
 
 def get_recent_episodes(limit: int = 20) -> list[dict]:
     with conn() as c:
-        rows = c.execute("""
+        rows = c.execute(
+            """
             SELECT * FROM episodes_log
             ORDER BY detected_at DESC LIMIT ?
-        """, (limit,)).fetchall()
+        """,
+            (limit,),
+        ).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -197,7 +213,7 @@ def get_all_snapshot() -> list[dict]:
         return [dict(r) for r in rows]
 
 
-def get_last_scan() -> Optional[str]:
+def get_last_scan() -> str | None:
     """Время последнего сканирования = MAX(last_seen) по каталогу (A-11)."""
     with conn() as c:
         row = c.execute("SELECT MAX(last_seen) AS ts FROM anime_snapshot").fetchone()
@@ -216,6 +232,5 @@ def get_unnotified_episodes() -> list[dict]:
 def mark_notified(episode_ids: list[int]) -> None:
     with conn() as c:
         c.executemany(
-            "UPDATE episodes_log SET notified=1 WHERE id=?",
-            [(i,) for i in episode_ids]
+            "UPDATE episodes_log SET notified=1 WHERE id=?", [(i,) for i in episode_ids]
         )

@@ -1,4 +1,5 @@
 """RF-14: smoke полного цикла Рафаила — меню, сбор, статус, scheduler-джобы."""
+
 import asyncio
 import sys
 from pathlib import Path
@@ -8,14 +9,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "modules" / "tg-media-anal
 
 def _fresh_db(tmp_path, monkeypatch):
     import modules.rafail.db as db
+
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "rafail.db")
     db.init_db()
 
 
 def test_menus_build():
     """Меню Рафаила и Аниме собираются, кнопки на русском."""
-    from bot.rafail_menu import main_menu, settings_menu, approval_keyboard
     from bot.anime_menu import main_menu as anime_main
+    from bot.rafail_menu import approval_keyboard, main_menu, settings_menu
 
     rf = main_menu().inline_keyboard
     texts = [b.text for row in rf for b in row]
@@ -36,22 +38,30 @@ def test_menus_build():
 def test_smoke_status_and_collect(tmp_path, monkeypatch):
     """Статус БЗ отвечает; сбор по моковому RSS проходит без падений."""
     _fresh_db(tmp_path, monkeypatch)
-    from modules.rafail import knowledge_base as kb
     from agents.rafail import RafailAgent
     from core.parsers.rss import RssParser
+    from modules.rafail import knowledge_base as kb
 
     s = kb.get_stats()
     assert s["materials"] == 0
 
     async def fake_fetch(self, url, hours=48, limit=10, source=""):
-        return [{"title": "Тест", "url": f"https://x/{source}", "published": None,
-                 "source": source}]
+        return [
+            {
+                "title": "Тест",
+                "url": f"https://x/{source}",
+                "published": None,
+                "source": source,
+            }
+        ]
+
     monkeypatch.setattr(RssParser, "fetch", fake_fetch)
 
     from core.parsers.html import HtmlParser
 
     async def fake_html(self, url, selector=None):
         return []
+
     monkeypatch.setattr(HtmlParser, "fetch", fake_html)
 
     out = asyncio.run(RafailAgent().execute("collect"))
@@ -68,10 +78,13 @@ def test_scheduler_jobs_registered(monkeypatch):
     class FakeDriver:
         def schedule(self, job_id, cron, cb):
             scheduled[job_id] = cron
+
         def start(self):
             pass
+
         def remove(self, job_id):
             pass
+
         def list_jobs(self):
             return list(scheduled)
 

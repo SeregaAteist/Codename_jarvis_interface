@@ -1,11 +1,13 @@
 """RF-9: fixer — матчинг файлов модуля/++, полный цикл с моками Drive/LLM/approver."""
+
 import asyncio
 
-from modules.rafail.fixer import match_module_files, fix_module
+from modules.rafail.fixer import fix_module, match_module_files
 
 
 def _fresh_db(tmp_path, monkeypatch):
     import modules.rafail.db as db
+
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "rafail.db")
     db.init_db()
     return db
@@ -15,8 +17,8 @@ def test_match_module_files():
     files = [
         {"id": "a", "name": "М1. Ринок СЕС.docx"},
         {"id": "b", "name": "М1 ++ правки.docx"},
-        {"id": "c", "name": "М10. Інше.docx"},      # не должен матчиться на М1
-        {"id": "d", "name": "M2_module.md"},          # латиница
+        {"id": "c", "name": "М10. Інше.docx"},  # не должен матчиться на М1
+        {"id": "d", "name": "M2_module.md"},  # латиница
     ]
     mod, plus = match_module_files(files, "М1")
     assert mod["id"] == "a" and plus["id"] == "b"
@@ -53,6 +55,7 @@ def test_fix_module_full_cycle(tmp_path, monkeypatch):
     async def fake_generate(prompt, quality=False):
         assert "оригінал модуля" in prompt and "правки ++" in prompt
         return "ЗЛИТА НОВА ВЕРСІЯ"
+
     monkeypatch.setattr(processor, "_generate", fake_generate)
 
     class AutoApprover:
@@ -76,17 +79,22 @@ def test_fix_module_rejected_stops_upload(tmp_path, monkeypatch):
 
     class FakeDrive:
         FOLDER_IDS = {"course_ses": "F"}
+
         def folder(self, key):
             return self.FOLDER_IDS[key]
+
         async def list_folder(self, folder_id):
             return [{"id": "m", "name": "М3 модуль"}, {"id": "p", "name": "М3 ++"}]
+
         async def read_file(self, file_id):
             return "x"
+
         async def upload_file(self, *a, **kw):
             raise AssertionError("upload не должен вызываться при reject")
 
     async def fake_generate(prompt, quality=False):
         return "merged"
+
     monkeypatch.setattr(processor, "_generate", fake_generate)
 
     class RejectApprover:
@@ -102,8 +110,10 @@ def test_fix_module_missing_files(tmp_path, monkeypatch):
 
     class EmptyDrive:
         FOLDER_IDS = {"course_ses": "F"}
+
         def folder(self, key):
             return self.FOLDER_IDS[key]
+
         async def list_folder(self, folder_id):
             return []
 

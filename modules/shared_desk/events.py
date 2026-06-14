@@ -1,7 +1,8 @@
 """Типы событий и их схемы."""
+
 from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Optional
 from datetime import datetime
 
 
@@ -11,10 +12,10 @@ class CallFinishedEvent:
     phone: str
     duration: int
     disposition: str
-    audio_url: Optional[str] = None
-    contact_id: Optional[int] = None
-    lead_id: Optional[int] = None
-    manager_sip: Optional[str] = None
+    audio_url: str | None = None
+    contact_id: int | None = None
+    lead_id: int | None = None
+    manager_sip: str | None = None
     ts: datetime = field(default_factory=datetime.now)
 
 

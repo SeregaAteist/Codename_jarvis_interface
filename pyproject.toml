@@ -10,13 +10,28 @@ line-length = 100
 select = ["E", "F", "I", "N", "W", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
-"modules/rafail/db/seed.py" = ["E501"]  # long prompt strings in triple-quoted literals
-"core/main.py" = ["E402", "E501"]  # sys.path.insert pattern + long f-strings
-"core/plugin_registry.py" = ["E501"]  # long docstring
-"core/reasoning.py" = ["E501"]  # long regex pattern strings
-"modules/tg-media-analyzer/db/storage.py" = ["E501"]  # long SQL strings
-"modules/tg-media-analyzer/pipeline/quick.py" = ["E501"]  # long prompt strings
+"modules/rafail/db/seed.py" = ["E501"]
+"core/main.py" = ["E402", "E501"]
+"core/plugin_registry.py" = ["E501"]
+"core/reasoning.py" = ["E501"]
+"core/monitor.py" = ["E501", "N806"]
+"core/router.py" = ["E501"]
+"modules/tg-media-analyzer/db/storage.py" = ["E501"]
+"modules/tg-media-analyzer/pipeline/quick.py" = ["E501"]
+"modules/tg-media-analyzer/pipeline/deep.py" = ["E501"]
+"modules/tg-media-analyzer/executor/local_queue.py" = ["E501"]
+"modules/tg-media-analyzer/executor/ssh_executor.py" = ["E402"]
 "modules/tg-media-analyzer/analyzers/url_downloader.py" = ["E741", "F841"]
+"connectors/voice.py" = ["E402"]
+"agents/__init__.py" = ["F401"]
+"tests/test_smoke.py" = ["N812"]
+"tests/test_anime.py" = ["N812", "E501"]
+"tests/test_rafail_drive.py" = ["F841", "N805"]
+"tests/test_supervisor.py" = ["N812", "N805", "F841", "E702"]
+"core/parsers/html.py" = ["E501"]
+"core/parsers/rss.py" = ["E501"]
+"modules/tg-media-analyzer/executor/watcher.py" = ["E501"]
+"shared/logging_setup.py" = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
