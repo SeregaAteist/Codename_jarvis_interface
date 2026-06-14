@@ -26,7 +26,13 @@ MODEL_QUALITY = os.getenv(
 
 
 class RafailProcessor:
-    """OOP-интерфейс для обработки материалов → учебный контент."""
+    """OOP-интерфейс для обработки материалов → учебный контент.
+
+    Пример использования:
+        processor = RafailProcessor(level="trainee", dept="sales")
+        result = await processor.process_batch(limit=10)
+        print(f"Оброблено: {result['processed']}, помилок: {result['errors']}")
+    """
 
     def __init__(self, level: str | None = None, dept: str | None = None) -> None:
         s = get_settings()

@@ -32,7 +32,13 @@ _DEFAULT_ROLES: dict[str, str] = {
 
 
 class LLMRouter:
-    """Единая точка доступа к LLM провайдерам."""
+    """Единая точка доступа к LLM провайдерам.
+
+    Пример использования:
+        router = get_router()
+        answer = await router.generate("quality", "Поясни переваги СЕС")
+        summary = await router.generate("speed", "Стисни текст: {text}")
+    """
 
     def __init__(self) -> None:
         self._gemini_pool = gemini_pool

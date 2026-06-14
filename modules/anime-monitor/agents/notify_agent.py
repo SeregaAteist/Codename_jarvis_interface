@@ -1,9 +1,9 @@
 import logging
 
 import httpx
+from config import cfg
 
 from agents.db_agent import get_watchlist
-from config import cfg
 
 logger = logging.getLogger("notify")
 
@@ -17,6 +17,7 @@ async def send_message(text: str, parse_mode: str = "HTML") -> bool:
     if not cfg.TELEGRAM_TOKEN or not cfg.TELEGRAM_CHAT_ID:
         logger.info("(no token) %s", text)
         return False
+    thread_id = getattr(cfg, "ANIME_TOPIC_ID", 0)
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(
@@ -26,8 +27,8 @@ async def send_message(text: str, parse_mode: str = "HTML") -> bool:
                     "text": text,
                     "parse_mode": parse_mode,
                     "disable_web_page_preview": False,
-                    **({"message_thread_id": cfg.THREAD_ID} if cfg.THREAD_ID else {}),
-                }
+                    **({"message_thread_id": thread_id} if thread_id else {}),
+                },
             )
             return resp.status_code == 200
     except Exception as e:
@@ -49,6 +50,7 @@ def filter_by_watchlist(new_items: list[dict]) -> tuple[list[dict], bool]:
 
 
 async def notify_new_episodes(new_items: list[dict]) -> None:
+    """Красивое уведомление о новинках аниме с рейтингом и жанрами."""
     if not new_items:
         return
 
@@ -57,17 +59,30 @@ async def notify_new_episodes(new_items: list[dict]) -> None:
         logger.info("Новинок по вотчлисту нет (%d отфильтровано).", len(new_items))
         return
 
-    header = (
-        "🔔 <b>Новые серии — ваш вотчлист:</b>\n"
-        if from_watchlist else
-        f"📺 <b>Новинки на сайте ({len(filtered)}):</b>\n"
-    )
+    count = len(filtered)
+    if from_watchlist:
+        header = f"🔔 <b>Нові серії — ваш вотчліст ({count}):</b>\n\n"
+    else:
+        header = f"🎌 <b>Нові аніме ({count}):</b>\n\n"
+
     lines = [header]
-    for item in filtered[:15]:
-        ep = f" [{item['episode']}]" if item.get("episode") else ""
-        score = f" · MAL {item['mal_score']}" if item.get("mal_score") else ""
-        lines.append(f"⭐ <a href='{item['url']}'>{item['title']}</a>{ep}{score}")
-    await send_message("\n".join(lines))
+    for item in filtered[:10]:
+        title = (item.get("title") or "")[:50]
+        genres = ", ".join((item.get("genres") or [])[:2])
+        rating = item.get("mal_score") or item.get("score", "")
+        ep = item.get("episode", "")
+        url = item.get("url", "")
+
+        line = f"▶️ <b><a href='{url}'>{title}</a></b>"
+        if ep:
+            line += f" [{ep}]"
+        if rating:
+            line += f" ⭐{rating}"
+        if genres:
+            line += f"\n   {genres}"
+        lines.append(line + "\n")
+
+    await send_message("".join(lines))
 
 
 async def notify_scan_complete(total: int, new_count: int) -> None:

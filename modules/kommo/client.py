@@ -16,7 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 class KommoClient:
-    """Typed Kommo CRM клиент с Pydantic моделями."""
+    """Typed Kommo CRM клиент с Pydantic моделями.
+
+    Пример использования:
+        client = KommoClient()
+        contact = await client.find_contact_by_phone("+380939151888")
+        if contact:
+            leads = await client.get_contact_leads(contact.id)
+            print(f"Знайдено {len(leads)} угод")
+    """
 
     def __init__(self, domain: str | None = None, token: str | None = None) -> None:
         s = get_settings()

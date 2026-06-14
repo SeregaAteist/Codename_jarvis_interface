@@ -18,6 +18,54 @@ from collections.abc import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
+
+# ── Доменные исключения JARVIS ────────────────────────────────────────────────
+
+
+class JarvisError(Exception):
+    """Базовое исключение JARVIS."""
+
+
+class LLMError(JarvisError):
+    """Ошибка LLM провайдера."""
+
+    def __init__(self, provider: str, message: str) -> None:
+        self.provider = provider
+        super().__init__(f"[{provider}] {message}")
+
+
+class KommoError(JarvisError):
+    """Ошибка Kommo CRM API."""
+
+
+class RingostatError(JarvisError):
+    """Ошибка Ringostat webhook/API."""
+
+
+class MoodleError(JarvisError):
+    """Ошибка Moodle API."""
+
+
+class ProfileNotFoundError(JarvisError):
+    """Профиль компании не найден в реестре профилей."""
+
+    def __init__(self, profile_id: str) -> None:
+        self.profile_id = profile_id
+        super().__init__(f"Профіль не знайдено: {profile_id}")
+
+
+class EquipmentNotFoundError(JarvisError):
+    """Оборудование не найдено в реестре."""
+
+    def __init__(self, brand: str = "", model: str = "") -> None:
+        self.brand = brand
+        self.model = model
+        label = f"{brand} {model}".strip() or "невідоме обладнання"
+        super().__init__(f"Обладнання не знайдено: {label}")
+
+
+# ── LLM error codes + retry policy ───────────────────────────────────────────
+
 ERROR_MESSAGES: dict[str, str] = {
     "GEMINI_503": "⚠️ 503 — Сервис Gemini перегружен, повторяю автоматически…",
     "GEMINI_429": "⏳ 429 — Дневной лимит исчерпан, обработка возобновится после сброса квоты",

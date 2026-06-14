@@ -50,6 +50,55 @@ RAFAIL_COMMANDS_PROMPT = """Ты обрабатываешь команды дл�
 Команда: {text}
 """
 
+_INTENTS = (
+    "list_equipment|find_manual|show_scripts|script_stats"
+    "|switch_profile|create_profile|collect|process"
+    "|show_pending|approve_all|stats|news|free_question"
+)
+
+INTENT_PROMPT = (
+    "Визнач намір команди для системи Рафаіл.\n\n"
+    "Команда: {text}\n\n"
+    "Поверни JSON (тільки JSON, без markdown):\n"
+    '{{"intent": "' + _INTENTS + '", "params": {{}}}}\n\n'
+    "Приклади:\n"
+    '- "покажи реєстр обладнання" → {{"intent": "list_equipment", "params": {{}}}}\n'
+    '- "знайди мануал Deye SUN-10K" → {{"intent": "find_manual",'
+    ' "params": {{"query": "Deye SUN-10K"}}}}\n'
+    '- "покажи скрипти по запереченню дорого" → {{"intent": "show_scripts",'
+    ' "params": {{"query": "дорого"}}}}\n'
+    '- "статистика скриптів" → {{"intent": "script_stats", "params": {{}}}}\n'
+    '- "переключись на профіль solar" → {{"intent": "switch_profile",'
+    ' "params": {{"profile_id": "solar"}}}}\n'
+    '- "створи профіль: LK Energy, сонячна енергетика" → {{"intent": "create_profile",'
+    ' "params": {{"name": "LK Energy", "direction": "сонячна енергетика"}}}}\n'
+    '- "збери матеріали" → {{"intent": "collect", "params": {{}}}}\n'
+    '- "обробити 10 матеріалів" → {{"intent": "process", "params": {{"limit": 10}}}}\n'
+    '- "покажи pending" → {{"intent": "show_pending", "params": {{}}}}\n'
+    '- "одобри всі" → {{"intent": "approve_all", "params": {{}}}}\n'
+    '- "статистика" → {{"intent": "stats", "params": {{}}}}\n'
+    '- "що нового в СЕС?" → {{"intent": "news", "params": {{}}}}'
+)
+
+
+async def _detect_intent(text: str) -> dict:
+    """Определяет намерение через LLM. Возвращает {'intent': '...', 'params': {}}."""
+    from shared.llm.router import get_router
+
+    router = get_router()
+    try:
+        raw = await router.generate("speed", INTENT_PROMPT.format(text=text))
+        raw = raw.strip()
+        # Убираем markdown-блоки если LLM всё же их добавил
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        return json.loads(raw)
+    except Exception as e:
+        logger.warning("[rafail-intent] LLM error: %s", e)
+        return {"intent": "free_question", "params": {}}
+
 
 async def _handle_profile_command(
     text: str, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -442,48 +491,48 @@ async def handle_scripts_query(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -
     await update.message.reply_text(answer[:4000])
 
 
+async def handle_list_equipment(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показать полный реестр оборудования с моделями."""
+    pm = get_profile_manager()
+    reg = EquipmentRegistry(pm.active.equipment_dir)
+    cards = reg.list_models()
+    if not cards:
+        await update.message.reply_text("Реєстр обладнання порожній.")
+        return
+    by_brand: dict[str, list[str]] = {}
+    for c in cards:
+        by_brand.setdefault(c.brand, []).append(c.model)
+    lines = []
+    for brand, models in sorted(by_brand.items()):
+        lines.append(f"<b>{brand}</b>")
+        lines.extend(f"  • {m}" for m in sorted(models))
+    await update.message.reply_text(
+        f"📦 Реєстр обладнання ({len(cards)} позицій):\n\n" + "\n".join(lines),
+        parse_mode="HTML",
+    )
+
+
+async def handle_news(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показать последние материалы из БЗ."""
+    recent = kb.get_materials(limit=10)
+    if not recent:
+        await update.message.reply_text("Нових матеріалів немає.")
+        return
+    lines = [f"🆕 Нове в СЕС (останні {len(recent)}):\n"]
+    for m in recent:
+        title = (m.get("title") or "")[:60]
+        src = (m.get("source_url") or "")[:40]
+        lines.append(f"• <b>{title}</b>\n  {src}")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
 async def handle_knowledge_topic(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE, text_override: str | None = None
 ) -> None:
     text = (text_override or update.message.text or "").strip()
     lower = text.lower()
 
-    if await _handle_profile_command(text, update, ctx):
-        return
-
-    if any(
-        w in lower for w in ("знайди мануал", "найди мануал", "manual", "інструкція")
-    ):
-        await handle_find_manual(update, ctx)
-        return
-
-    if any(w in lower for w in ("прайс", "price", "ціна", "цена")):
-        await handle_parse_price(update, ctx)
-        return
-
-    if any(w in lower for w in ("скрипт", "заперечення", "script")):
-        await handle_scripts_query(update, ctx)
-        return
-
-    if any(w in lower for w in ("pending", "очередь", "ожидают")):
-        text_out, markup = pending_card(0)
-        await update.message.reply_text(
-            text_out, reply_markup=markup or main_menu(), parse_mode="HTML"
-        )
-        return
-
-    if any(w in lower for w in ("статистика", "stats")):
-        s = kb.get_stats()
-        await update.message.reply_text(
-            "📊 Статистика Рафаила:\n" + "\n".join(f"• {k}: {v}" for k, v in s.items()),
-            reply_markup=main_menu(),
-        )
-        return
-
-    if any(w in lower for w in ("одобри все", "approve all")):
-        await _approve_all(update, ctx)
-        return
-
+    # Быстрые маршруты без LLM (меню, прайс — явные паттерны)
     if any(w in lower for w in ("меню", "menu", "старт")):
         thread_kwargs = _reply_thread(update)
         await update.effective_chat.send_message(
@@ -491,7 +540,86 @@ async def handle_knowledge_topic(
         )
         return
 
-    await handle_free_question(update, ctx, text)
+    if any(w in lower for w in ("прайс", "price")):
+        await handle_parse_price(update, ctx)
+        return
+
+    # Intent detection via LLM
+    detected = await _detect_intent(text)
+    intent = detected.get("intent", "free_question")
+    params = detected.get("params") or {}
+
+    if intent == "list_equipment":
+        await handle_list_equipment(update, ctx)
+
+    elif intent == "find_manual":
+        await handle_find_manual(update, ctx)
+
+    elif intent in ("show_scripts", "script_stats"):
+        await handle_scripts_query(update, ctx)
+
+    elif intent == "switch_profile":
+        pm = get_profile_manager()
+        profile_id = params.get("profile_id", "").strip()
+        try:
+            profile = pm.load(profile_id)
+            await update.message.reply_text(f"✅ Профіль переключено: {profile.name}")
+        except (FileNotFoundError, KeyError):
+            await update.message.reply_text(f"❌ Профіль не знайдено: {profile_id}")
+
+    elif intent == "create_profile":
+        pm = get_profile_manager()
+        name = params.get("name", "").strip()
+        direction = params.get("direction", "").strip()
+        if not name:
+            await update.message.reply_text("Вкажіть назву профілю.")
+            return
+        profile_id = name.lower().replace(" ", "_")
+        profile = pm.create(profile_id, name, direction)
+        await update.message.reply_text(f"✅ Профіль створено: {profile.name}")
+
+    elif intent == "collect":
+        await update.message.reply_text("🔄 Збираю матеріали...")
+        from modules.rafail.collector import collect_all
+
+        summary = await collect_all()
+        lines = [f"• {name}: +{n}" for name, n in summary.items() if n] or [
+            "нічого нового"
+        ]
+        await update.message.reply_text("🔄 Збір завершено:\n" + "\n".join(lines))
+
+    elif intent == "process":
+        limit = int(params.get("limit", 10))
+        await update.message.reply_text(f"⚡ Обробляю до {limit} матеріалів...")
+        from modules.rafail.processor import process_pending
+
+        res = await process_pending(limit=limit)
+        await update.message.reply_text(
+            f"⚡ Готово: оброблено {res.get('processed', 0)}, "
+            f"пропущено {res.get('skipped', 0)}, помилок {res.get('errors', 0)}"
+        )
+
+    elif intent == "show_pending":
+        text_out, markup = pending_card(0)
+        await update.message.reply_text(
+            text_out, reply_markup=markup or main_menu(), parse_mode="HTML"
+        )
+
+    elif intent == "approve_all":
+        await _approve_all(update, ctx)
+
+    elif intent == "stats":
+        s = kb.get_stats()
+        await update.message.reply_text(
+            "📊 Статистика Рафаила:\n" + "\n".join(f"• {k}: {v}" for k, v in s.items()),
+            reply_markup=main_menu(),
+        )
+
+    elif intent == "news":
+        await handle_news(update, ctx)
+
+    else:
+        await handle_free_question(update, ctx, text)
 
 
 async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
