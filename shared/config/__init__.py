@@ -109,4 +109,15 @@ def load(module: str) -> ModuleConfig:
 
 
 # Дефолтный синглтон для обратной совместимости (media_analyzer).
-CFG: ModuleConfig = load("media_analyzer")
+# Ленивая инициализация: load() вызывается при первом обращении к CFG,
+# чтобы импорт shared.config.* не падал в тест-окружениях без полного .env.
+_CFG_SINGLETON: ModuleConfig | None = None
+
+
+def __getattr__(name: str) -> ModuleConfig:
+    global _CFG_SINGLETON
+    if name == "CFG":
+        if _CFG_SINGLETON is None:
+            _CFG_SINGLETON = load("media_analyzer")
+        return _CFG_SINGLETON
+    raise AttributeError(f"module 'shared.config' has no attribute {name!r}")

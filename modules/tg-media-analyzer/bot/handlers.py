@@ -364,3 +364,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 text=text,
                 parse_mode="Markdown",
             )
+
+
+class MediaAnalyzerBot:
+    """Обёртка над handler-функциями media-analyzer как JarvisBot-совместимый класс.
+
+    main.py использует собственный build_app() с полным набором handlers.
+    Этот класс регистрирует только core-media handlers — для standalone/тестового запуска.
+    """
+
+    def register_handlers(self, app) -> None:  # type: ignore[type-arg]
+        from telegram.ext import CallbackQueryHandler, MessageHandler, filters
+
+        media_filter = (
+            filters.VIDEO | filters.PHOTO | filters.VOICE | filters.VIDEO_NOTE
+        )
+        app.add_handler(MessageHandler(media_filter, handle_media))
+        app.add_handler(
+            MessageHandler(filters.TEXT & filters.Entity("url"), handle_url)
+        )
+        app.add_handler(CallbackQueryHandler(handle_callback, pattern=r"^[sdx]:"))
